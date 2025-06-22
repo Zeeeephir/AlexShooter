@@ -93,6 +93,7 @@
             letter-spacing: 1px;
             position: relative;
             overflow: hidden;
+            z-index: 2; /* S'assure que les boutons sont au-dessus des effets */
         }
         .menu-button::before {
             content: '';
@@ -323,6 +324,85 @@
         .key-remap-button.active {
             background-color: #f6ad55; /* Orange when remapping */
         }
+
+        /* Styles pour le menu de pause */
+        #pause-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.85); /* Fond sombre et transparent */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999; /* Au-dessus du jeu, mais sous les confirmations */
+            display: none; /* Caché par défaut */
+        }
+        #pause-menu h2 {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 40px;
+            color: #4299e1;
+            text-shadow: 0 0 10px rgba(66, 153, 225, 0.7);
+        }
+        #pause-menu .menu-button { /* Réutilise le style des boutons du menu principal */
+            margin: 10px 0; /* Ajuste la marge pour ce menu */
+        }
+
+        /* Styles pour le modal de confirmation de quitter */
+        #quit-confirm-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* Au-dessus du menu de pause */
+            display: none; /* Caché par default */
+        }
+        #quit-confirm-content {
+            background-color: #2d3748;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            color: #e2e8f0;
+        }
+        #quit-confirm-content p {
+            font-size: 1.2rem;
+            margin-bottom: 25px;
+        }
+        #quit-confirm-content .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        #quit-confirm-content .button-group button {
+            background-color: #e53e3e; /* Rouge pour le bouton Oui */
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+        }
+        #quit-confirm-content .button-group button:hover {
+            background-color: #c53030;
+        }
+        #quit-confirm-content .button-group button#confirm-quit-no {
+            background-color: #48bb78; /* Vert pour le bouton Non */
+        }
+        #quit-confirm-content .button-group button#confirm-quit-no:hover {
+            background-color: #38a169;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200">
@@ -387,6 +467,25 @@
         </div>
     </div>
 
+    <!-- Menu de Pause -->
+    <div id="pause-menu" style="display: none;">
+        <h2>PAUSE</h2>
+        <button id="resume-button" class="menu-button">Reprendre</button>
+        <button id="pause-settings-button" class="menu-button">Paramètres</button>
+        <button id="quit-to-main-button" class="menu-button">Retour au Menu Principal</button>
+    </div>
+
+    <!-- Modal de confirmation pour quitter -->
+    <div id="quit-confirm-modal" style="display: none;">
+        <div id="quit-confirm-content">
+            <p>Êtes-vous sûr de vouloir quitter ? Toute progression non sauvegardée sera perdue.</p>
+            <div class="button-group">
+                <button id="confirm-quit-yes">Oui</button>
+                <button id="confirm-quit-no">Non</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Variables Globales Three.js ---
         let scene, camera, renderer;
@@ -408,9 +507,13 @@
         let mainMenuDiv, gameContainer, infoBox, settingsSection;
         let startGameButton, mainMenuSettingsButton, backToMainMenuButton, resetKeysButton;
         let sensitivitySlider, currentSensitivityDisplay;
+        let pauseMenu, resumeButton, pauseSettingsButton, quitToMainButton; // Pause menu elements
+        let quitConfirmModal, confirmQuitYesButton, confirmQuitNoButton; // Quit confirmation elements
 
         // State
-        let isSettingsScreen = false; // Vrai si l'écran des paramètres est affiché, Faux si le menu principal est affiché
+        let currentUIMode = 'mainMenu'; // 'mainMenu', 'game', 'pauseMenu', 'settings', 'quitConfirm', 'remapping'
+        let previousUIMode = 'mainMenu'; // Used for 'Escape' key to return to previous screen
+        let isPointerLockRequested = false; // Empêche les requêtes de verrouillage multiples
 
         // Variables de remappage des touches. Ces codes sont les 'event.code' des touches.
         // Les codes sont basés sur le layout QWERTY standard pour la robustesse du remappage.
@@ -441,14 +544,28 @@
         // Fonction pour gérer les événements keydown du jeu (déplacements, Échap)
         function handleGameKeydown(event) {
             keyboard[event.code] = true;
+
             if (event.code === 'Escape') {
-                if (gameActive) { // Si le jeu est actif (pointeur verrouillé)
-                    showSettingsScreen(); // Ouvre les paramètres
+                if (isRemappingKey) { // Annuler le remappage si en cours
+                    endRemap(currentRemapAction, null);
+                } else if (currentUIMode === 'quitConfirm') { // Annuler la confirmation de quitter
+                    hideQuitConfirm();
+                    showPauseMenu(); // Revenir au menu de pause
+                } else if (currentUIMode === 'game') { // Si en jeu, afficher le menu pause
+                    showPauseMenu();
                     document.exitPointerLock(); // Relâche le pointeur
-                } else if (isSettingsScreen) { // Si les paramètres sont déjà ouverts (Échap pour revenir au menu principal)
-                    showMenuScreen(); // Retourne au menu principal
+                } else if (currentUIMode === 'pauseMenu') { // Si en pause, reprendre le jeu
+                    hidePauseMenu();
+                    requestGamePointerLock(); // Tenter de re-verrouiller le pointeur
+                } else if (currentUIMode === 'settings') { // Si dans les paramètres
+                    // Dépend d'où on vient pour les paramètres (menu principal ou menu pause)
+                    if (previousUIMode === 'pauseMenu') {
+                        showPauseMenu();
+                    } else { // C'est que ça vient du menu principal
+                        showMenuScreen();
+                    }
                 }
-                event.preventDefault(); // Empêche le comportement par défaut de la touche Échap (ex: quitter le plein écran)
+                event.preventDefault(); // Empêche le comportement par défaut de la touche Échap
             }
         }
 
@@ -565,9 +682,9 @@
             document.addEventListener('keyup', handleGameKeyup);
         }
 
-        // Fonction pour réinitialiser les touches aux valeurs par défaut
+        // Fonction pour réinitialiser les touches aux valeurs par default
         function resetKeysToDefault() {
-            // Remet les keyBindings aux valeurs AZERTY par défaut (codes QWERTY)
+            // Remet les keyBindings aux valeurs AZERTY par default (codes QWERTY)
             keyBindings.moveForward = defaultKeyBindings.moveForward;
             keyBindings.moveBackward = defaultKeyBindings.moveBackward;
             keyBindings.strafeLeft = defaultKeyBindings.strafeLeft;
@@ -721,36 +838,43 @@
             renderer.render(scene, camera); // Rendre la scène
         }
 
+        // --- Fonctions de gestion des écrans ---
+
         // Fonction pour afficher le menu principal
         function showMenuScreen() {
+            currentUIMode = 'mainMenu'; // Met à jour l'état de l'UI
             mainMenuDiv.style.display = 'flex';
             document.getElementById('main-menu-title').style.display = 'block';
             document.getElementById('menu-buttons-container').style.display = 'flex';
             settingsSection.style.display = 'none'; // Cache la section des paramètres
+            pauseMenu.style.display = 'none'; // Cache le menu de pause
+            quitConfirmModal.style.display = 'none'; // Cache le modal de confirmation
             gameContainer.style.display = 'none';
             infoBox.style.display = 'none';
             gameActive = false;
-            isSettingsScreen = false;
             // Met à jour les boutons de remappage des touches avec les liaisons actuelles lors du retour au menu
             updateKeyRemapButtons();
             // Réactive les animations de fond du menu
             shootingEffectElements.forEach(el => el.style.display = 'block');
-            console.log("Affichage de l'écran du menu principal.");
+            console.log("Affichage de l'écran du menu principal. Mode UI:", currentUIMode);
         }
 
         // Fonction pour afficher l'écran des paramètres
         function showSettingsScreen() {
+            previousUIMode = currentUIMode; // Sauvegarde l'état précédent
+            currentUIMode = 'settings'; // Met à jour l'état de l'UI
             mainMenuDiv.style.display = 'flex';
             document.getElementById('main-menu-title').style.display = 'none'; // Cache le titre du menu principal
             document.getElementById('menu-buttons-container').style.display = 'none'; // Cache les boutons du menu principal
             settingsSection.style.display = 'flex'; // Affiche la section des paramètres
+            pauseMenu.style.display = 'none'; // Cache le menu de pause
+            quitConfirmModal.style.display = 'none'; // Cache le modal de confirmation
             gameContainer.style.display = 'none';
             infoBox.style.display = 'none';
             gameActive = false;
-            isSettingsScreen = true;
             // Désactive les animations de fond du menu quand les paramètres sont ouverts
             shootingEffectElements.forEach(el => el.style.display = 'none');
-            console.log("Affichage de l'écran des paramètres. isSettingsScreen:", isSettingsScreen);
+            console.log("Affichage de l'écran des paramètres. Mode UI:", currentUIMode, "Précédent:", previousUIMode);
 
             // Met à jour la valeur du curseur et le texte lors de l'affichage des paramètres
             if (sensitivitySlider && currentSensitivityDisplay) {
@@ -759,6 +883,90 @@
             }
             // Met à jour les boutons de remappage des touches avec les liaisons actuelles
             updateKeyRemapButtons();
+        }
+
+        // Fonction pour afficher le menu de pause
+        function showPauseMenu() {
+            previousUIMode = currentUIMode; // Sauvegarde l'état précédent (devrait être 'game' ici)
+            currentUIMode = 'pauseMenu'; // Met à jour l'état de l'UI
+            pauseMenu.style.display = 'flex';
+            mainMenuDiv.style.display = 'none';
+            settingsSection.style.display = 'none';
+            gameContainer.style.display = 'none';
+            infoBox.style.display = 'block'; // Peut afficher des infos de pause ici si besoin
+            gameActive = false;
+            // Désactive les animations de fond du menu quand le jeu est en pause
+            shootingEffectElements.forEach(el => el.style.display = 'none');
+            console.log("Affichage du menu de pause. Mode UI:", currentUIMode, "Précédent:", previousUIMode);
+        }
+
+        // Fonction pour cacher le menu de pause
+        function hidePauseMenu() {
+            pauseMenu.style.display = 'none';
+            infoBox.style.display = 'none';
+            // currentUIMode sera mis à jour par pointerlockchange si le jeu reprend
+            console.log("Menu de pause caché.");
+        }
+
+        // Fonction pour afficher le modal de confirmation de quitter
+        function showQuitConfirm() {
+            previousUIMode = currentUIMode; // Sauvegarde l'état précédent (devrait être 'pauseMenu' ici)
+            currentUIMode = 'quitConfirm'; // Met à jour l'état de l'UI
+            quitConfirmModal.style.display = 'flex';
+            pauseMenu.style.display = 'none'; // Cache le menu de pause derrière la confirmation
+            console.log("Affichage du modal de confirmation de quitter. Mode UI:", currentUIMode, "Précédent:", previousUIMode);
+        }
+
+        // Fonction pour cacher le modal de confirmation de quitter
+        function hideQuitConfirm() {
+            // currentUIMode est mis à jour par la fonction appelante (soit showPauseMenu, soit showMenuScreen)
+            // Donc ici on ne fait que cacher le modal.
+            quitConfirmModal.style.display = 'none';
+            console.log("Modal de confirmation caché.");
+        }
+
+        // --- Fonction centralisée pour demander le verrouillage du pointeur ---
+        function requestGamePointerLock() {
+            // Si une requête est déjà en cours ou si le pointeur est déjà verrouillé par le jeu, ne rien faire
+            if (isPointerLockRequested || document.pointerLockElement === gameContainer) {
+                console.log("Verrouillage du pointeur déjà demandé ou actif, saut de la nouvelle demande.");
+                // Si déjà verrouillé, mais l'état UI n'est pas 'game', alors le forcer (cas de reprise rapide)
+                if (document.pointerLockElement === gameContainer && currentUIMode !== 'game') {
+                    // C'est une reprise depuis un menu sans erreur de verrouillage
+                    console.log("Forcing UI to game state because pointer is already locked.");
+                    gameActive = true;
+                    currentUIMode = 'game';
+                    mainMenuDiv.style.display = 'none';
+                    settingsSection.style.display = 'none';
+                    pauseMenu.style.display = 'none';
+                    quitConfirmModal.style.display = 'none';
+                    gameContainer.style.display = 'block';
+                    infoBox.style.display = 'none';
+                }
+                return;
+            }
+
+            isPointerLockRequested = true; // Marquer qu'une requête est en cours
+            gameContainer.requestPointerLock()
+                .then(() => {
+                    console.log('Verrouillage du pointeur demandé avec succès (promesse résolue).');
+                    // Le `pointerlockchange` se chargera de mettre à jour `gameActive` et `currentUIMode`
+                    // et de masquer/afficher les éléments UI.
+                    isPointerLockRequested = false; // La requête est passée, donc on peut réinitialiser le drapeau ici.
+                })
+                .catch((e) => {
+                    isPointerLockRequested = false; // Réinitialiser le drapeau en cas d'erreur
+                    console.warn('Échec ou annulation de la demande de verrouillage du pointeur:', e);
+                    // Si l'échec est dû à une annulation par l'utilisateur (ex: Échap), il faut revenir à l'écran précédent
+                    // Sinon, c'est une erreur inattendue et on retourne au menu principal
+                    if (e.name === "SecurityError") { // Souvent l'erreur pour "utilisateur a quitté le lock"
+                        showMessage('Verrouillage de la souris annulé. Retour au menu principal.', 3000);
+                        showMenuScreen(); // Revenir au menu principal si l'utilisateur a annulé
+                    } else {
+                        showMessage('Erreur de verrouillage de la souris. Retour au menu principal.', 3000);
+                        showMenuScreen(); // Erreur inattendue
+                    }
+                });
         }
 
 
@@ -803,6 +1011,17 @@
             backToMainMenuButton = document.getElementById('back-to-main-menu-button');
             resetKeysButton = document.getElementById('reset-keys-button'); // Récupération du bouton Réinitialiser
 
+            // Pause Menu Elements
+            pauseMenu = document.getElementById('pause-menu');
+            resumeButton = document.getElementById('resume-button');
+            pauseSettingsButton = document.getElementById('pause-settings-button');
+            quitToMainButton = document.getElementById('quit-to-main-button');
+
+            // Quit Confirmation Modal Elements
+            quitConfirmModal = document.getElementById('quit-confirm-modal');
+            confirmQuitYesButton = document.getElementById('confirm-quit-yes');
+            confirmQuitNoButton = document.getElementById('confirm-quit-no');
+
             // Initialise la valeur du curseur et attache l'écouteur
             if (sensitivitySlider) {
                 sensitivitySlider.value = rotationSpeed;
@@ -826,6 +1045,38 @@
             // Attache l'écouteur pour le bouton Réinitialiser les touches
             if (resetKeysButton) {
                 resetKeysButton.addEventListener('click', resetKeysToDefault);
+            }
+
+            // Attache les écouteurs pour les boutons du menu de pause
+            if (resumeButton) {
+                resumeButton.addEventListener('click', () => {
+                    hidePauseMenu();
+                    requestGamePointerLock(); // Utilise la fonction centralisée
+                });
+            }
+            if (pauseSettingsButton) {
+                pauseSettingsButton.addEventListener('click', () => {
+                    hidePauseMenu();
+                    showSettingsScreen();
+                });
+            }
+            if (quitToMainButton) {
+                quitToMainButton.addEventListener('click', showQuitConfirm); // Affiche la confirmation avant de quitter
+            }
+
+            // Attache les écouteurs pour le modal de confirmation de quitter
+            if (confirmQuitYesButton) {
+                confirmQuitYesButton.addEventListener('click', () => {
+                    hideQuitConfirm();
+                    showMenuScreen(); // Retourne au menu principal
+                    showMessage("Partie abandonnée. La progression a été perdue.", 3000);
+                });
+            }
+            if (confirmQuitNoButton) {
+                confirmQuitNoButton.addEventListener('click', () => {
+                    hideQuitConfirm();
+                    showPauseMenu(); // Revenir au menu de pause
+                });
             }
 
             // Création des effets de tir pour le menu
@@ -935,20 +1186,9 @@
 
             // Gestion du blocage du pointeur (Pointer Lock API)
             gameContainer.addEventListener('click', () => {
-                // Tenter de verrouiller le pointeur UNIQUEMENT si le jeu n'est pas actif ET que les paramètres ne sont pas ouverts
-                if (!gameActive && !isSettingsScreen) {
-                    gameContainer.requestPointerLock()
-                        .then(() => {
-                            console.log('Verrouillage du pointeur activé (via promise).');
-                            // La logique de bascule de gameActive et de l'UI est gérée par pointerlockchange
-                        })
-                        .catch((e) => {
-                            // Gère explicitement l'erreur si le verrouillage échoue (ex: SecurityError)
-                            console.warn('Requête de verrouillage du pointeur annulée ou échouée:', e);
-                            showMessage('Verrouillage de la souris annulé ou non accordé. Retour au menu principal.', 3000);
-                            gameActive = false; // S'assure que le jeu est en pause
-                            showMenuScreen(); // Retourne au menu principal
-                        });
+                // Tenter de verrouiller le pointeur UNIQUEMENT si le jeu n'est pas actif ET que les menus ne sont pas affichés
+                if (!gameActive && currentUIMode === 'mainMenu') { // Ne lancer le jeu que depuis le menu principal
+                    requestGamePointerLock(); // Utilise la fonction centralisée
                 }
             });
 
@@ -957,22 +1197,40 @@
                     // Pointeur verrouillé : le jeu est actif
                     console.log('Verrouillage du pointeur activé.');
                     gameActive = true;
-                    isSettingsScreen = false; // Assure que les paramètres ne sont pas actifs
-                    mainMenuDiv.style.display = 'none'; // Cache le menu principal
-                    gameContainer.style.display = 'block'; // Affiche le conteneur du jeu
-                    infoBox.style.display = 'none'; // Cache l'info-box en jeu
+                    currentUIMode = 'game'; // Met à jour l'état de l'UI
+                    isPointerLockRequested = false; // Réinitialiser le drapeau ici
+
+                    mainMenuDiv.style.display = 'none';
+                    settingsSection.style.display = 'none';
+                    pauseMenu.style.display = 'none';
+                    quitConfirmModal.style.display = 'none';
+                    gameContainer.style.display = 'block';
+                    infoBox.style.display = 'none';
                 } else {
-                    // Pointeur relâché : le jeu est en pause
+                    // Pointeur relâché : le jeu est en pause ou un menu est ouvert
                     console.log('Verrouillage du pointeur désactivé.');
                     gameActive = false;
-                    gameContainer.style.display = 'none'; // Cache le conteneur du jeu
+                    isPointerLockRequested = false; // Réinitialiser le drapeau ici
+                    gameContainer.style.display = 'none';
+                    infoBox.style.display = 'block'; // Affiche l'info-box quand le jeu est en pause
 
-                    // Si on était sur l'écran des paramètres avant de relâcher, on y reste.
-                    // Sinon, on retourne au menu principal.
-                    if (!isSettingsScreen) { // Si c'était un déverrouillage générique (comme Échap depuis le jeu)
+                    // Revenir à l'écran approprié en fonction de l'état précédent
+                    if (currentUIMode === 'game') { // Si on quitte le jeu (Ex: touche Échap), aller au menu pause
+                        showPauseMenu();
+                    } else if (currentUIMode === 'pauseMenu') { // Si on quitte le pause menu (Ex: annulation de reprise), rester au pause menu
+                        showPauseMenu();
+                    } else if (currentUIMode === 'settings') { // Si on quitte les paramètres
+                        // Si les paramètres ont été ouverts depuis la pause, revenir à la pause
+                        if (previousUIMode === 'pauseMenu') {
+                            showPauseMenu();
+                        } else { // Sinon (depuis le menu principal), revenir au menu principal
+                            showMenuScreen();
+                        }
+                    } else if (currentUIMode === 'quitConfirm') { // Si on quitte la confirmation de quitter
+                        showPauseMenu(); // Revenir au menu de pause
+                    } else { // Par défaut, revenir au menu principal
                         showMenuScreen();
                     }
-                    infoBox.style.display = 'block'; // Affiche l'info-box quand le jeu est en pause
                 }
             });
 
@@ -981,17 +1239,16 @@
                 // Si l'erreur se produit et que le pointeur n'est PAS verrouillé au jeu, c'est une indication d'un problème.
                 if (document.pointerLockElement !== gameContainer) {
                     showMessage('Le verrouillage de la souris a été interrompu ou n\'a pas pu être activé. Retour au menu principal.', 3000);
-                    gameActive = false;
-                    isSettingsScreen = false; // Assure que le modal des paramètres est fermé
                     showMenuScreen(); // Retourne au menu principal
                 }
             });
 
             // Gestion des événements du menu principal
             startGameButton.addEventListener('click', () => {
-                mainMenuDiv.style.display = 'none';
-                gameContainer.style.display = 'block';
-                gameContainer.requestPointerLock();
+                // Initialise le jeu avant de tenter le verrouillage du pointeur
+                mainMenuDiv.style.display = 'none'; // Cache le menu principal immédiatement
+                gameContainer.style.display = 'block'; // Affiche le conteneur du jeu
+                requestGamePointerLock(); // Demande le verrouillage du pointeur
             });
 
             mainMenuSettingsButton.addEventListener('click', () => {
