@@ -525,6 +525,7 @@
         let keyboard = {}; // État des touches du clavier (pressée/relâchée)
         let isAiming = false; // État du clic droit (viser)
         let enemies = []; // Tableau pour stocker les ennemis
+        let collidableObjects = []; // Nouveau tableau pour les objets avec lesquels le joueur peut entrer en collision
         let raycaster = new THREE.Raycaster(); // Pour la détection de tir
         let messageBox; // Référence à la boîte de message UI
         let gameActive = false; // Pour savoir si le jeu est actif (après clic initial)
@@ -545,6 +546,7 @@
         const gravity = -0.01; // Force de gravité
         const jumpStrength = 0.2; // Force du saut
         let canJump = true; // Pour éviter les double-sauts
+        const playerCollisionRadius = 0.5; // Rayon du joueur pour les collisions avec les bâtiments
 
         let currentAmmo = 30;
         const magazineCapacity = 30;
@@ -727,7 +729,7 @@
 
         // Gestionnaire pour l'événement keydown de remappage
         function handleRemapKeydown(event) {
-            event.preventDefault(); // Empêche l'action par défaut du navigateur pour la touche
+            event.preventDefault(); // Empêche l'action par default du navigateur pour la touche
 
             if (event.code === 'Escape') { // Permet à Échap d'annuler le remappage
                 endRemap(currentRemapAction, null); // Annule le remappage
@@ -815,7 +817,7 @@
             } else if (event.button === 2) { // Clic droit (Viser)
                 isAiming = true;
                 document.body.classList.add('aiming'); // Ajoute une classe pour le viseur
-                showMessage("Visée activée !", 1000);
+                // showMessage("Visée activée !", 1000); // Message retiré
                 // Animer l'arme vers une position de visée
                 if (armMesh) {
                     // Position de visée: plus centré, légèrement relevé
@@ -843,6 +845,7 @@
 
         // Fonction pour afficher un message temporaire
         function showMessage(text, duration = 2000) {
+            // console.log("Message:", text); // Pour le débogage
             messageBox.textContent = text;
             messageBox.style.display = 'block';
             setTimeout(() => {
@@ -852,42 +855,43 @@
 
         // Fonction de tir (Clic gauche)
         function shoot() {
-            if (!gameActive || isReloading || currentAmmo <= 0) {
-                if (currentAmmo <= 0 && !isReloading) showMessage("Plus de balles ! Appuyez sur R pour recharger.", 1500);
+            if (!gameActive || isReloading) { // Impossible de tirer en rechargeant
+                return;
+            }
+            if (currentAmmo <= 0) { // Plus de balles
+                performReload(); // Tente le rechargement automatique
                 return;
             }
 
             currentAmmo--;
             updateAmmoDisplay();
-            // showMessage("Tir !", 500); // Retiré pour ne pas interférer avec les animations visuelles
+            // showMessage("Tir !", 500); // Message retiré
 
             // Définir le point d'origine du rayon (position de la caméra) et la direction (direction de la caméra)
             raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
 
             // Obtenir les intersections avec les ennemis
-            const intersects = raycaster.intersectObjects(enemies, true);
+            const intersects = raycaster.intersectObjects(enemies, true); // Intersects enemies only
 
             if (intersects.length > 0) {
-                // Un ennemi a été touché !
-                const hitEnemy = intersects[0].object;
-                // Temporairement pour le débogage : ajouter une indication visuelle de coup réussi
-                // const hitIndicator = new THREE.Mesh(
-                //     new THREE.SphereGeometry(0.1, 8, 8),
-                //     new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-                // );
-                // hitIndicator.position.copy(intersects[0].point);
-                // scene.add(hitIndicator);
-                // setTimeout(() => scene.remove(hitIndicator), 200);
+                console.log("Hit! Intersects:", intersects); // Debugging hit
+                const hitObject = intersects[0].object;
+                const hitEnemy = enemies.find(enemy => enemy.uuid === hitObject.uuid); // Ensure it's one of our enemies
 
-                scene.remove(hitEnemy); // Supprime l'ennemi de la scène
-                enemies = enemies.filter(enemy => enemy !== hitEnemy); // Le retire du tableau des ennemis
-                showMessage("Ennemi touché ! (" + enemies.length + " restants)", 1500);
+                if (hitEnemy) { // Double-check it's an actual enemy
+                    scene.remove(hitEnemy); // Supprime l'ennemi de la scène
+                    enemies = enemies.filter(enemy => enemy.uuid !== hitEnemy.uuid); // Le retire du tableau des ennemis
+                    showMessage("Ennemi touché ! (" + enemies.length + " restants)", 1500);
 
-                if (enemies.length === 0) {
-                    showMessage("Félicitations, tous les ennemis sont éliminés !", 5000);
+                    if (enemies.length === 0) {
+                        showMessage("Félicitations, tous les ennemis sont éliminés !", 5000);
+                    }
+                } else {
+                    console.log("Raycast hit something, but it's not a tracked enemy:", hitObject.uuid);
                 }
             } else {
-                // Manqué ! (message déjà affiché par showMessage("Tir!"))
+                // Manqué ! (message déjà géré par l'absence de feedback textuel)
+                console.log("Miss!"); // Debugging miss
             }
         }
 
@@ -896,7 +900,7 @@
             if (canJump) {
                 playerVerticalVelocity = jumpStrength;
                 canJump = false;
-                showMessage("Saut !", 500);
+                // showMessage("Saut !", 500); // Message de saut retiré
             }
         }
 
@@ -930,11 +934,13 @@
             // Animation du coup de couteau
             const initialPos = new THREE.Vector3(0.6, -0.6, -1.0);
             const swingPos = new THREE.Vector3(0.8, -0.4, -1.2); // Position en coup
-            const swingRotation = new THREE.Vector3(Math.PI / 4, Math.PI / 8, Math.PI / 2); // Rotation en coup
+            const swingRotation = new THREE.Euler(Math.PI / 4, Math.PI / 8, Math.PI / 2); // Rotation en coup
 
             let startTime = performance.now();
 
             function animateKnifeSwing() {
+                if (!knifeVisual || !gameActive) return; // Arrêter l'animation si le jeu n'est pas actif ou l'objet n'existe plus
+
                 const elapsed = performance.now() - startTime;
                 const progress = elapsed / knifeAttackDuration;
 
@@ -949,7 +955,9 @@
                     knifeVisual.rotation.y = THREE.MathUtils.lerp(swingRotation.y, Math.PI / 8, (progress - 0.5) * 2);
                     knifeVisual.rotation.z = THREE.MathUtils.lerp(swingRotation.z, Math.PI / 2, (progress - 0.5) * 2);
                 } else {
-                    camera.remove(knifeVisual); // Remove after animation
+                    if (knifeVisual.parent) { // S'assure que l'objet est toujours attaché avant de le retirer
+                        camera.remove(knifeVisual); // Remove after animation
+                    }
                     return;
                 }
                 requestAnimationFrame(animateKnifeSwing);
@@ -968,16 +976,23 @@
             knifeRaycaster.set(origin, direction);
             knifeRaycaster.far = knifeRange; // Limiter la portée
 
-            const intersects = knifeRaycaster.intersectObjects(enemies, true);
+            const intersects = knifeRaycaster.intersectObjects(enemies, true); // Vérifie les ennemis uniquement
 
             if (intersects.length > 0) {
-                const hitEnemy = intersects[0].object;
-                scene.remove(hitEnemy);
-                enemies = enemies.filter(enemy => enemy !== hitEnemy);
-                showMessage(`Ennemi poignardé ! (${enemies.length} restants)`, 1500);
+                console.log("Knife hit! Intersects:", intersects); // Debugging knife hit
+                const hitObject = intersects[0].object;
+                const hitEnemy = enemies.find(enemy => enemy.uuid === hitObject.uuid); // Assurez-vous que c'est un de nos ennemis
 
-                if (enemies.length === 0) {
-                    showMessage("Félicitations, tous les ennemis sont éliminés !", 5000);
+                if (hitEnemy) {
+                    scene.remove(hitEnemy);
+                    enemies = enemies.filter(enemy => enemy.uuid !== hitEnemy.uuid);
+                    showMessage(`Ennemi poignardé ! (${enemies.length} restants)`, 1500);
+
+                    if (enemies.length === 0) {
+                        showMessage("Félicitations, tous les ennemis sont éliminés !", 5000);
+                    }
+                } else {
+                    console.log("Knife raycast hit something, but it's not a tracked enemy:", hitObject.uuid);
                 }
             }
 
@@ -989,11 +1004,14 @@
 
         // Fonction pour recharger l'arme
         function performReload() {
-            if (isReloading || totalReserveAmmo <= 0 || currentAmmo === magazineCapacity) return;
+            if (isReloading || totalReserveAmmo <= 0 || currentAmmo === magazineCapacity) {
+                // Pas besoin de message ici, l'auto-rechargement est silencieux si les conditions ne sont pas remplies
+                return;
+            }
 
             isReloading = true;
             ammoDisplay.classList.add('reloading');
-            showMessage("Rechargement...", reloadDuration);
+            // showMessage("Rechargement...", reloadDuration); // Message retiré
 
             const initialArmPos = armMesh.position.clone();
             const reloadArmPos = new THREE.Vector3(initialArmPos.x, initialArmPos.y - 0.3, initialArmPos.z); // Descend un peu
@@ -1003,6 +1021,8 @@
             let startTime = performance.now();
 
             function animateReload() {
+                if (!armMesh || !gameActive) return; // Arrêter l'animation si le jeu n'est pas actif ou l'objet n'existe plus
+
                 const elapsed = performance.now() - startTime;
                 let progress = 0;
 
@@ -1057,37 +1077,83 @@
                 // Réinitialiser la vélocité
                 playerVelocity.set(0, 0, 0);
 
-                // Utilisation de la direction réelle de la caméra pour un mouvement correct
-                const forward = new THREE.Vector3();
-                camera.getWorldDirection(forward); // Obtient le vecteur Z négatif de la caméra
-                forward.y = 0; // Annule le mouvement vertical pour l'avant/arrière
-                forward.normalize();
+                // Directions pour la détection de collision
+                const forwardDir = new THREE.Vector3();
+                camera.getWorldDirection(forwardDir);
+                forwardDir.y = 0; // Collision horizontale
+                forwardDir.normalize();
 
-                const right = new THREE.Vector3();
-                right.setFromMatrixColumn(camera.matrix, 0); // Obtient le vecteur X de la caméra
-                right.y = 0; // Annule le mouvement vertical pour le strafe
-                right.normalize();
+                const rightDir = new THREE.Vector3();
+                // Utilisation du vecteur 'right' de la caméra pour le strafe correct
+                rightDir.setFromMatrixColumn(camera.matrixWorld, 0);
+                rightDir.y = 0; // Garder le strafe horizontal
+                rightDir.normalize();
 
-                // Mouvement basé sur les keyBindings (maintenant corrigé pour AZERTY)
-                // Avancer: utilise le vecteur 'forward' (correctement orienté par la caméra)
+
+                // Calculer le mouvement désiré avant la vérification de collision
+                let desiredMoveX = 0;
+                let desiredMoveZ = 0;
+
                 if (keyboard[keyBindings.moveForward]) {
-                    playerVelocity.addScaledVector(forward, moveSpeed);
+                    desiredMoveZ += moveSpeed;
                 }
-                // Reculer: utilise le vecteur 'forward' inversé
                 if (keyboard[keyBindings.moveBackward]) {
-                    playerVelocity.addScaledVector(forward, -moveSpeed);
+                    desiredMoveZ -= moveSpeed;
                 }
-                // Strafe Gauche: utilise le vecteur 'right' inversé
+                // Correction de l'inversion du strafe :
+                // Si la touche gauche est pressée, applique le mouvement dans la direction négative de 'rightDir'
                 if (keyboard[keyBindings.strafeLeft]) {
-                    playerVelocity.addScaledVector(right, -moveSpeed);
+                    desiredMoveX -= moveSpeed;
                 }
-                // Strafe Droite: utilise le vecteur 'right'
+                // Si la touche droite est pressée, applique le mouvement dans la direction positive de 'rightDir'
                 if (keyboard[keyBindings.strafeRight]) {
-                    playerVelocity.addScaledVector(right, moveSpeed);
+                    desiredMoveX += moveSpeed;
                 }
 
-                // Appliquer la vélocité à la position du conteneur du joueur
-                playerContainer.position.add(playerVelocity);
+                // Appliquer le mouvement XZ après vérification des collisions
+                const currentPosition = playerContainer.position.clone();
+                const nextPosition = playerContainer.position.clone();
+                
+                // Mouvement avant/arrière
+                if (desiredMoveZ !== 0) {
+                    const moveVectorZ = forwardDir.clone().multiplyScalar(desiredMoveZ);
+                    // Rayon depuis le centre du joueur, dans la direction du mouvement Z, avec une distance suffisante
+                    raycaster.set(currentPosition, moveVectorZ.clone().normalize());
+                    raycaster.far = moveVectorZ.length() + playerCollisionRadius; // Distance à vérifier
+
+                    const intersects = raycaster.intersectObjects(collidableObjects, true);
+                    
+                    if (intersects.length === 0 || intersects[0].distance >= moveVectorZ.length() + playerCollisionRadius) {
+                        // Pas de collision ou collision assez loin, appliquer tout le mouvement
+                        nextPosition.add(moveVectorZ);
+                    } else {
+                        // Collision, ajuster le mouvement au point de collision
+                        // Move up to the collision point minus a small buffer
+                        nextPosition.add(moveVectorZ.clone().normalize().multiplyScalar(intersects[0].distance - playerCollisionRadius - 0.01));
+                        console.log("Collision Z! Stopped by:", intersects[0].object.name, "Distance:", intersects[0].distance);
+                    }
+                }
+
+                // Mouvement latéral (strafe)
+                if (desiredMoveX !== 0) {
+                    const moveVectorX = rightDir.clone().multiplyScalar(desiredMoveX);
+                    // Rayon depuis le centre du joueur, dans la direction du mouvement X
+                    raycaster.set(currentPosition, moveVectorX.clone().normalize());
+                    raycaster.far = moveVectorX.length() + playerCollisionRadius;
+
+                    const intersects = raycaster.intersectObjects(collidableObjects, true);
+
+                    if (intersects.length === 0 || intersects[0].distance >= moveVectorX.length() + playerCollisionRadius) {
+                        nextPosition.add(moveVectorX);
+                    } else {
+                        nextPosition.add(moveVectorX.clone().normalize().multiplyScalar(intersects[0].distance - playerCollisionRadius - 0.01));
+                        console.log("Collision X! Stopped by:", intersects[0].object.name, "Distance:", intersects[0].distance);
+                    }
+                }
+                
+                playerContainer.position.x = nextPosition.x;
+                playerContainer.position.z = nextPosition.z;
+
 
                 // Gestion du saut et de la gravité
                 playerVerticalVelocity += gravity; // Applique la gravité
@@ -1383,24 +1449,27 @@
             const groundTexture = textureLoader.load('https://placehold.co/1024x1024/303030/808080.png');
             groundTexture.wrapS = THREE.RepeatWrapping;
             groundTexture.wrapT = THREE.RepeatWrapping;
-            groundTexture.repeat.set(10, 10); // Répéter la texture pour couvrir le sol
+            groundTexture.repeat.set(20, 20); // Agrandir la répétition pour une plus grande carte
 
             // Texture pour les bâtiments (béton usé/rouille)
             const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7, metalness: 0.1 });
-            for (let i = 0; i < 50; i++) {
-                const buildingWidth = Math.random() * 5 + 2;
-                const buildingDepth = Math.random() * 5 + 2;
-                const buildingHeight = Math.random() * 15 + 5; // Hauteur variable
+            const numberOfBuildings = 200; // Augmenter le nombre de bâtiments
+            const mapLimit = 90; // Limite de la map pour positionner les bâtiments
+            for (let i = 0; i < numberOfBuildings; i++) {
+                const buildingWidth = Math.random() * 8 + 3; // Bâtiments plus variés et un peu plus grands
+                const buildingDepth = Math.random() * 8 + 3;
+                const buildingHeight = Math.random() * 20 + 5; // Hauteur variable
 
                 const buildingGeometry = new THREE.BoxGeometry(buildingWidth, buildingHeight, buildingDepth);
                 const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
 
-                // Position aléatoire, mais sur le sol et sans chevauchement excessif
-                building.position.x = (Math.random() - 0.5) * 80;
-                building.position.z = (Math.random() - 0.5) * 80;
+                // Position aléatoire sur la carte agrandie
+                building.position.x = (Math.random() - 0.5) * mapLimit * 2;
+                building.position.z = (Math.random() - 0.5) * mapLimit * 2;
                 building.position.y = buildingHeight / 2; // Pour que la base soit sur le sol
 
                 scene.add(building);
+                collidableObjects.push(building); // Ajouter le bâtiment au tableau des objets à collision
             }
 
             // --- Création des ennemis ---
@@ -1409,9 +1478,9 @@
                 const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
                 const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
 
-                enemy.position.x = (Math.random() - 0.5) * 60;
+                enemy.position.x = (Math.random() - 0.5) * (mapLimit * 0.8); // Position des ennemis dans la map agrandie
                 enemy.position.y = 0.5; // Sur le sol
-                enemy.position.z = (Math.random() - 0.5) * 60;
+                enemy.position.z = (Math.random() - 0.5) * (mapLimit * 0.8);
                 scene.add(enemy);
                 enemies.push(enemy);
             }
