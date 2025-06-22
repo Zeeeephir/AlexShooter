@@ -403,6 +403,24 @@
         #quit-confirm-content .button-group button#confirm-quit-no:hover {
             background-color: #38a169;
         }
+
+        /* HUD pour l'affichage des munitions */
+        #ammo-display {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #e2e8f0;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            z-index: 90;
+            display: none; /* Caché par default, montré en jeu */
+        }
+        #ammo-display.reloading {
+            color: #f6ad55; /* Orange when reloading */
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200">
@@ -410,10 +428,12 @@
         <div id="info-box" class="rounded-xl">
             <h1 class="text-2xl font-bold mb-2">Bienvenue dans AlexShooter !</h1>
             <p>Cliquez n'importe où pour commencer le jeu et bloquer votre souris.</p>
-            <p id="controls-info">Contrôles par défaut (AZERTY) : Z pour Avancer, Q pour Strafe Gauche, S pour Reculer, D pour Strafe Droite. Clic gauche pour Tirer, Clic droit pour Viser.</p>
+            <p id="controls-info">Contrôles par défaut (AZERTY) : Z pour Avancer, Q pour Strafe Gauche, S pour Reculer, D pour Strafe Droite. Clic gauche pour Tirer, Clic droit pour Viser. Espace pour sauter, C pour coup de couteau, R pour recharger.</p>
         </div>
         <div id="message-box" class="hidden"></div>
         <div id="crosshair"></div>
+
+        <div id="ammo-display" style="display: none;">30 / 90</div>
 
         <!-- Le bouton paramètres en jeu est toujours là, mais caché quand les paramètres sont dans le menu principal -->
         <button id="settings-button" class="rounded-lg" style="display: none;">
@@ -452,6 +472,15 @@
                 </div>
                 <div class="key-remap-row">
                     <span>Strafe Droite:</span> <button id="remap-strafeRight" class="key-remap-button">D</button>
+                </div>
+                 <div class="key-remap-row">
+                    <span>Sauter:</span> <button id="remap-jump" class="key-remap-button">Espace</button>
+                </div>
+                <div class="key-remap-row">
+                    <span>Coup de Couteau:</span> <button id="remap-knife" class="key-remap-button">C</button>
+                </div>
+                <div class="key-remap-row">
+                    <span>Recharger:</span> <button id="remap-reload" class="key-remap-button">R</button>
                 </div>
             </div>
 
@@ -509,8 +538,33 @@
         let sensitivitySlider, currentSensitivityDisplay;
         let pauseMenu, resumeButton, pauseSettingsButton, quitToMainButton; // Pause menu elements
         let quitConfirmModal, confirmQuitYesButton, confirmQuitNoButton; // Quit confirmation elements
+        let ammoDisplay; // Affichage des munitions
 
-        // State
+        // Game State (new functionalities)
+        let playerVerticalVelocity = 0;
+        const gravity = -0.01; // Force de gravité
+        const jumpStrength = 0.2; // Force du saut
+        let canJump = true; // Pour éviter les double-sauts
+
+        let currentAmmo = 30;
+        const magazineCapacity = 30;
+        let totalReserveAmmo = 90;
+        let isReloading = false;
+        const reloadDuration = 2000; // 2 secondes pour recharger
+        // Variables pour l'animation de rechargement
+        let reloadAnimationStartTime = 0;
+        const reloadDownDuration = reloadDuration * 0.3; // 30% du temps pour descendre
+        const reloadUpDuration = reloadDuration * 0.7; // 70% du temps pour remonter
+
+        let knifeCooldown = 1000; // 1 seconde de cooldown pour le couteau
+        let isKnifeReady = true;
+        const knifeRange = 2; // Portée du coup de couteau
+        const knifeDamage = 1; // Dégâts du couteau
+        const knifeAttackDuration = 200; // Durée de l'effet visuel du couteau
+        let knifeHitbox; // Mesh pour la hitbox visuelle du couteau (non utilisé pour le moment, juste pour référence)
+        let knifeVisual; // Référence au mesh visuel du couteau
+
+        // UI State
         let currentUIMode = 'mainMenu'; // 'mainMenu', 'game', 'pauseMenu', 'settings', 'quitConfirm', 'remapping'
         let previousUIMode = 'mainMenu'; // Used for 'Escape' key to return to previous screen
         let isPointerLockRequested = false; // Empêche les requêtes de verrouillage multiples
@@ -522,14 +576,20 @@
             'moveForward': 'KeyW', // Correspond à la touche physique 'Z' sur un clavier AZERTY
             'moveBackward': 'KeyS', // Correspond à la touche physique 'S'
             'strafeLeft': 'KeyA',   // Correspond à la touche physique 'Q' sur un clavier AZERTY
-            'strafeRight': 'KeyD'   // Correspond à la touche physique 'D'
+            'strafeRight': 'KeyD',   // Correspond à la touche physique 'D'
+            'jump': 'Space',
+            'knife': 'KeyC',
+            'reload': 'KeyR'
         };
         // Copie des valeurs par défaut pour la réinitialisation
         const defaultKeyBindings = {
             'moveForward': 'KeyW',
             'moveBackward': 'KeyS',
             'strafeLeft': 'KeyA',
-            'strafeRight': 'KeyD'
+            'strafeRight': 'KeyD',
+            'jump': 'Space',
+            'knife': 'KeyC',
+            'reload': 'KeyR'
         };
 
         let isRemappingKey = false; // Indique si une touche est en cours de remappage
@@ -567,6 +627,19 @@
                 }
                 event.preventDefault(); // Empêche le comportement par défaut de la touche Échap
             }
+
+            // Gestion des actions en jeu (saut, couteau, rechargement) si le jeu est actif
+            if (gameActive) {
+                if (event.code === keyBindings.jump && canJump) {
+                    performJump();
+                }
+                if (event.code === keyBindings.knife && isKnifeReady && !isReloading) {
+                    performKnifeAttack();
+                }
+                if (event.code === keyBindings.reload && !isReloading && currentAmmo < magazineCapacity) {
+                    performReload();
+                }
+            }
         }
 
         // Fonction pour gérer les événements keyup du jeu
@@ -598,6 +671,8 @@
                 case 'ArrowDown': return 'Flèche Bas';
                 case 'ArrowLeft': return 'Flèche Gauche';
                 case 'ArrowRight': return 'Flèche Droite';
+                case 'KeyC': return 'C';
+                case 'KeyR': return 'R';
                 // Cas générique pour les autres touches si elles commencent par 'Key' ou 'Digit'
                 default:
                     if (code.startsWith('Key')) return code.substring(3);
@@ -613,6 +688,9 @@
                 case 'moveBackward': return 'Reculer';
                 case 'strafeLeft': return 'Strafe Gauche';
                 case 'strafeRight': return 'Strafe Droite';
+                case 'jump': return 'Sauter';
+                case 'knife': return 'Coup de Couteau';
+                case 'reload': return 'Recharger';
                 default: return action; // Ne devrait pas arriver pour les actions prédéfinies
             }
         }
@@ -623,6 +701,9 @@
             document.getElementById('remap-moveBackward').textContent = formatKeyCode(keyBindings.moveBackward);
             document.getElementById('remap-strafeLeft').textContent = formatKeyCode(keyBindings.strafeLeft);
             document.getElementById('remap-strafeRight').textContent = formatKeyCode(keyBindings.strafeRight);
+            document.getElementById('remap-jump').textContent = formatKeyCode(keyBindings.jump);
+            document.getElementById('remap-knife').textContent = formatKeyCode(keyBindings.knife);
+            document.getElementById('remap-reload').textContent = formatKeyCode(keyBindings.reload);
         }
 
         // Fonction pour démarrer le processus de remappage d'une touche
@@ -689,6 +770,9 @@
             keyBindings.moveBackward = defaultKeyBindings.moveBackward;
             keyBindings.strafeLeft = defaultKeyBindings.strafeLeft;
             keyBindings.strafeRight = defaultKeyBindings.strafeRight;
+            keyBindings.jump = defaultKeyBindings.jump;
+            keyBindings.knife = defaultKeyBindings.knife;
+            keyBindings.reload = defaultKeyBindings.reload;
             updateKeyRemapButtons(); // Met à jour l'affichage des boutons
             showMessage("Touches réinitialisées aux valeurs par défaut.", 2000);
         }
@@ -768,7 +852,14 @@
 
         // Fonction de tir (Clic gauche)
         function shoot() {
-            if (!gameActive) return;
+            if (!gameActive || isReloading || currentAmmo <= 0) {
+                if (currentAmmo <= 0 && !isReloading) showMessage("Plus de balles ! Appuyez sur R pour recharger.", 1500);
+                return;
+            }
+
+            currentAmmo--;
+            updateAmmoDisplay();
+            // showMessage("Tir !", 500); // Retiré pour ne pas interférer avec les animations visuelles
 
             // Définir le point d'origine du rayon (position de la caméra) et la direction (direction de la caméra)
             raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
@@ -779,6 +870,15 @@
             if (intersects.length > 0) {
                 // Un ennemi a été touché !
                 const hitEnemy = intersects[0].object;
+                // Temporairement pour le débogage : ajouter une indication visuelle de coup réussi
+                // const hitIndicator = new THREE.Mesh(
+                //     new THREE.SphereGeometry(0.1, 8, 8),
+                //     new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+                // );
+                // hitIndicator.position.copy(intersects[0].point);
+                // scene.add(hitIndicator);
+                // setTimeout(() => scene.remove(hitIndicator), 200);
+
                 scene.remove(hitEnemy); // Supprime l'ennemi de la scène
                 enemies = enemies.filter(enemy => enemy !== hitEnemy); // Le retire du tableau des ennemis
                 showMessage("Ennemi touché ! (" + enemies.length + " restants)", 1500);
@@ -787,8 +887,166 @@
                     showMessage("Félicitations, tous les ennemis sont éliminés !", 5000);
                 }
             } else {
-                showMessage("Manqué !", 1000);
+                // Manqué ! (message déjà affiché par showMessage("Tir!"))
             }
+        }
+
+        // Fonction pour le saut
+        function performJump() {
+            if (canJump) {
+                playerVerticalVelocity = jumpStrength;
+                canJump = false;
+                showMessage("Saut !", 500);
+            }
+        }
+
+        // Fonction pour l'attaque au couteau
+        function performKnifeAttack() {
+            if (!isKnifeReady) return;
+
+            isKnifeReady = false;
+            // showMessage("Coup de couteau !", 700); // Message retiré pour animation visuelle
+
+            // Créer et afficher la lame du couteau
+            const bladeGeometry = new THREE.BoxGeometry(0.05, 0.5, 0.05); // Lame fine
+            const handleGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.2, 8); // Manche
+            const knifeMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 });
+            
+            knifeVisual = new THREE.Group();
+            const blade = new THREE.Mesh(bladeGeometry, knifeMaterial);
+            const handle = new THREE.Mesh(handleGeometry, new THREE.MeshStandardMaterial({ color: 0x333333 }));
+            
+            blade.position.y = 0.25; // Placer la lame au-dessus du manche
+            handle.position.y = -0.1; // Placer le manche en dessous
+
+            knifeVisual.add(blade);
+            knifeVisual.add(handle);
+            
+            knifeVisual.position.set(0.6, -0.6, -1.0); // Position initiale proche du bras
+            knifeVisual.rotation.z = Math.PI / 2; // Orienter comme un couteau tenu
+
+            camera.add(knifeVisual); // Attacher à la caméra pour qu'il suive la vue
+
+            // Animation du coup de couteau
+            const initialPos = new THREE.Vector3(0.6, -0.6, -1.0);
+            const swingPos = new THREE.Vector3(0.8, -0.4, -1.2); // Position en coup
+            const swingRotation = new THREE.Vector3(Math.PI / 4, Math.PI / 8, Math.PI / 2); // Rotation en coup
+
+            let startTime = performance.now();
+
+            function animateKnifeSwing() {
+                const elapsed = performance.now() - startTime;
+                const progress = elapsed / knifeAttackDuration;
+
+                if (progress < 0.5) { // Swing forward
+                    knifeVisual.position.lerpVectors(initialPos, swingPos, progress * 2);
+                    knifeVisual.rotation.x = THREE.MathUtils.lerp(-Math.PI / 6 + (camera.rotation.x * 0.2), swingRotation.x, progress * 2);
+                    knifeVisual.rotation.y = THREE.MathUtils.lerp(Math.PI / 8, swingRotation.y, progress * 2);
+                    knifeVisual.rotation.z = THREE.MathUtils.lerp(Math.PI / 2, swingRotation.z, progress * 2);
+                } else if (progress < 1.0) { // Swing back
+                    knifeVisual.position.lerpVectors(swingPos, initialPos, (progress - 0.5) * 2);
+                    knifeVisual.rotation.x = THREE.MathUtils.lerp(swingRotation.x, -Math.PI / 6 + (camera.rotation.x * 0.2), (progress - 0.5) * 2);
+                    knifeVisual.rotation.y = THREE.MathUtils.lerp(swingRotation.y, Math.PI / 8, (progress - 0.5) * 2);
+                    knifeVisual.rotation.z = THREE.MathUtils.lerp(swingRotation.z, Math.PI / 2, (progress - 0.5) * 2);
+                } else {
+                    camera.remove(knifeVisual); // Remove after animation
+                    return;
+                }
+                requestAnimationFrame(animateKnifeSwing);
+            }
+            animateKnifeSwing();
+
+
+            // Raycaster pour la détection du coup de couteau (portée courte)
+            const knifeRaycaster = new THREE.Raycaster();
+            // Définir l'origine du rayon juste devant la caméra et dans la direction de la caméra
+            const origin = new THREE.Vector3();
+            camera.getWorldPosition(origin); // Position de la caméra
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction); // Direction de la caméra
+
+            knifeRaycaster.set(origin, direction);
+            knifeRaycaster.far = knifeRange; // Limiter la portée
+
+            const intersects = knifeRaycaster.intersectObjects(enemies, true);
+
+            if (intersects.length > 0) {
+                const hitEnemy = intersects[0].object;
+                scene.remove(hitEnemy);
+                enemies = enemies.filter(enemy => enemy !== hitEnemy);
+                showMessage(`Ennemi poignardé ! (${enemies.length} restants)`, 1500);
+
+                if (enemies.length === 0) {
+                    showMessage("Félicitations, tous les ennemis sont éliminés !", 5000);
+                }
+            }
+
+            // Réactiver le couteau après le cooldown
+            setTimeout(() => {
+                isKnifeReady = true;
+            }, knifeCooldown);
+        }
+
+        // Fonction pour recharger l'arme
+        function performReload() {
+            if (isReloading || totalReserveAmmo <= 0 || currentAmmo === magazineCapacity) return;
+
+            isReloading = true;
+            ammoDisplay.classList.add('reloading');
+            showMessage("Rechargement...", reloadDuration);
+
+            const initialArmPos = armMesh.position.clone();
+            const reloadArmPos = new THREE.Vector3(initialArmPos.x, initialArmPos.y - 0.3, initialArmPos.z); // Descend un peu
+            const initialArmRot = armMesh.rotation.clone();
+            const reloadArmRot = new THREE.Euler(initialArmRot.x + 0.3, initialArmRot.y, initialArmRot.z); // Petite rotation
+
+            let startTime = performance.now();
+
+            function animateReload() {
+                const elapsed = performance.now() - startTime;
+                let progress = 0;
+
+                if (elapsed < reloadDownDuration) {
+                    progress = elapsed / reloadDownDuration;
+                    armMesh.position.lerpVectors(initialArmPos, reloadArmPos, progress);
+                    armMesh.rotation.set(
+                        THREE.MathUtils.lerp(initialArmRot.x, reloadArmRot.x, progress),
+                        THREE.MathUtils.lerp(initialArmRot.y, reloadArmRot.y, progress),
+                        THREE.MathUtils.lerp(initialArmRot.z, reloadArmRot.z, progress)
+                    );
+                } else if (elapsed < reloadDuration) {
+                    progress = (elapsed - reloadDownDuration) / reloadUpDuration;
+                    armMesh.position.lerpVectors(reloadArmPos, initialArmPos, progress);
+                     armMesh.rotation.set(
+                        THREE.MathUtils.lerp(reloadArmRot.x, initialArmRot.x, progress),
+                        THREE.MathUtils.lerp(reloadArmRot.y, initialArmRot.y, progress),
+                        THREE.MathUtils.lerp(reloadArmRot.z, initialArmRot.z, progress)
+                    );
+                } else {
+                    // Animation terminée, réinitialise la position et la rotation pour être sûr
+                    armMesh.position.copy(initialArmPos);
+                    armMesh.rotation.copy(initialArmRot);
+                    
+                    const bulletsToReload = magazineCapacity - currentAmmo;
+                    const actualReloaded = Math.min(bulletsToReload, totalReserveAmmo);
+                    
+                    currentAmmo += actualReloaded;
+                    totalReserveAmmo -= actualReloaded;
+
+                    isReloading = false;
+                    ammoDisplay.classList.remove('reloading');
+                    updateAmmoDisplay();
+                    showMessage("Rechargé !", 1000);
+                    return;
+                }
+                requestAnimationFrame(animateReload);
+            }
+            animateReload();
+        }
+
+        // Met à jour l'affichage des munitions dans l'UI
+        function updateAmmoDisplay() {
+            ammoDisplay.textContent = `${currentAmmo} / ${totalReserveAmmo}`;
         }
 
         // Boucle d'animation principale
@@ -831,8 +1089,16 @@
                 // Appliquer la vélocité à la position du conteneur du joueur
                 playerContainer.position.add(playerVelocity);
 
-                // Déplacer le joueur uniquement sur le plan XZ (pas de vol)
-                playerContainer.position.y = 1.7; // Garde la hauteur du joueur constante
+                // Gestion du saut et de la gravité
+                playerVerticalVelocity += gravity; // Applique la gravité
+                playerContainer.position.y += playerVerticalVelocity;
+
+                // Simple collision avec le sol
+                if (playerContainer.position.y < 1.7) {
+                    playerContainer.position.y = 1.7;
+                    playerVerticalVelocity = 0;
+                    canJump = true;
+                }
             }
 
             renderer.render(scene, camera); // Rendre la scène
@@ -851,6 +1117,7 @@
             quitConfirmModal.style.display = 'none'; // Cache le modal de confirmation
             gameContainer.style.display = 'none';
             infoBox.style.display = 'none';
+            ammoDisplay.style.display = 'none'; // Cache l'affichage des munitions
             gameActive = false;
             // Met à jour les boutons de remappage des touches avec les liaisons actuelles lors du retour au menu
             updateKeyRemapButtons();
@@ -871,6 +1138,7 @@
             quitConfirmModal.style.display = 'none'; // Cache le modal de confirmation
             gameContainer.style.display = 'none';
             infoBox.style.display = 'none';
+            ammoDisplay.style.display = 'none'; // Cache l'affichage des munitions
             gameActive = false;
             // Désactive les animations de fond du menu quand les paramètres sont ouverts
             shootingEffectElements.forEach(el => el.style.display = 'none');
@@ -894,6 +1162,7 @@
             settingsSection.style.display = 'none';
             gameContainer.style.display = 'none';
             infoBox.style.display = 'block'; // Peut afficher des infos de pause ici si besoin
+            ammoDisplay.style.display = 'none'; // Cache l'affichage des munitions en pause
             gameActive = false;
             // Désactive les animations de fond du menu quand le jeu est en pause
             shootingEffectElements.forEach(el => el.style.display = 'none');
@@ -942,6 +1211,7 @@
                     quitConfirmModal.style.display = 'none';
                     gameContainer.style.display = 'block';
                     infoBox.style.display = 'none';
+                    ammoDisplay.style.display = 'block'; // Affiche l'affichage des munitions en jeu
                 }
                 return;
             }
@@ -995,6 +1265,7 @@
             // Récupération des éléments UI
             messageBox = document.getElementById('message-box');
             crosshair = document.getElementById('crosshair');
+            ammoDisplay = document.getElementById('ammo-display'); // Récupération de l'affichage des munitions
             
             mainMenuDiv = document.getElementById('main-menu');
             gameContainer = document.getElementById('game-container');
@@ -1041,6 +1312,9 @@
             document.getElementById('remap-moveBackward').addEventListener('click', (event) => startRemap('moveBackward', event.target));
             document.getElementById('remap-strafeLeft').addEventListener('click', (event) => startRemap('strafeLeft', event.target));
             document.getElementById('remap-strafeRight').addEventListener('click', (event) => startRemap('strafeRight', event.target));
+            document.getElementById('remap-jump').addEventListener('click', (event) => startRemap('jump', event.target));
+            document.getElementById('remap-knife').addEventListener('click', (event) => startRemap('knife', event.target));
+            document.getElementById('remap-reload').addEventListener('click', (event) => startRemap('reload', event.target));
             
             // Attache l'écouteur pour le bouton Réinitialiser les touches
             if (resetKeysButton) {
@@ -1206,6 +1480,7 @@
                     quitConfirmModal.style.display = 'none';
                     gameContainer.style.display = 'block';
                     infoBox.style.display = 'none';
+                    ammoDisplay.style.display = 'block'; // Affiche l'affichage des munitions en jeu
                 } else {
                     // Pointeur relâché : le jeu est en pause ou un menu est ouvert
                     console.log('Verrouillage du pointeur désactivé.');
@@ -1249,6 +1524,7 @@
                 mainMenuDiv.style.display = 'none'; // Cache le menu principal immédiatement
                 gameContainer.style.display = 'block'; // Affiche le conteneur du jeu
                 requestGamePointerLock(); // Demande le verrouillage du pointeur
+                updateAmmoDisplay(); // Met à jour l'affichage des munitions au démarrage du jeu
             });
 
             mainMenuSettingsButton.addEventListener('click', () => {
