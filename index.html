@@ -43,7 +43,11 @@
             width: 100vw;
             height: 100vh;
             /* Fond plus attractif pour le menu principal */
-            background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+            /* Image de ville apocalyptique depuis Wikimedia Commons (domaine public) */
+            background: linear-gradient(135deg, rgba(26,32,44,0.9) 0%, rgba(45,55,72,0.9) 100%), url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Apocalyptic_Cityscape_1.png/1920px-Apocalyptic_Cityscape_1.png') no-repeat center center / cover;
+            background-blend-mode: overlay; /* Mélange le dégradé avec l'image */
+            position: relative; /* Nécessaire pour les pseudo-éléments et les effets de tir */
+            overflow: hidden; /* Cache les débordements des effets de tir */
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -59,29 +63,36 @@
             text-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), 0 0 20px rgba(66, 153, 225, 0.7); /* Ombre plus prononcée */
             letter-spacing: 5px; /* Espacement des lettres */
             transition: all 0.3s ease-in-out;
+            position: relative; /* Pour z-index si nécessaire */
+            z-index: 2; /* S'assure que le titre est au-dessus des effets */
         }
         #main-menu h1:hover {
             transform: scale(1.02);
             color: #4299e1;
             text-shadow: 0 5px 20px rgba(66, 153, 225, 0.9), 0 0 30px rgba(66, 153, 225, 0.9);
         }
+        .menu-buttons-wrapper { /* Nouveau wrapper pour les boutons pour mieux gérer l'espacement */
+            display: flex;
+            flex-direction: column;
+            gap: 25px; /* Espacement entre les boutons */
+            z-index: 2; /* S'assure que le wrapper est au-dessus des effets */
+        }
         .menu-button {
             background-color: #4299e1;
-            background: linear-gradient(145deg, #4299e1 0%, #3182ce 100%); /* Dégradé pour les boutons */
+            background: linear-gradient(145deg, #2a3d5e 0%, #1a202c 100%); /* Dégradé sombre pour les boutons */
             color: white;
-            padding: 18px 40px; /* Plus grand padding */
-            margin: 15px 0; /* Plus d'espace entre les boutons */
-            border-radius: 12px; /* Coins plus arrondis */
-            border: none;
+            padding: 15px 35px; /* Taille ajustée */
+            border-radius: 12px; /* Coins arrondis */
+            border: 1px solid rgba(66, 153, 225, 0.5); /* Bordure subtile */
             cursor: pointer;
-            font-size: 1.8rem; /* Plus grande police */
+            font-size: 1.6rem; /* Police ajustée */
             font-weight: bold;
             transition: all 0.3s ease-in-out;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), inset 0 2px 5px rgba(255, 255, 255, 0.2); /* Ombre et incrustation */
-            width: 300px; /* Largeur fixe */
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5), inset 0 2px 4px rgba(255, 255, 255, 0.1); /* Ombre et incrustation */
+            width: 280px; /* Largeur fixe */
             letter-spacing: 1px;
-            position: relative; /* Pour l'effet de bordure */
-            overflow: hidden; /* Cache les débordements du pseudo-élément */
+            position: relative;
+            overflow: hidden;
         }
         .menu-button::before {
             content: '';
@@ -98,14 +109,53 @@
             left: 100%;
         }
         .menu-button:hover {
-            background-color: #3182ce;
-            transform: translateY(-5px) scale(1.02); /* Soulèvement et léger agrandissement */
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), inset 0 2px 7px rgba(255, 255, 255, 0.3);
+            background: linear-gradient(145deg, #3182ce 0%, #2a3d5e 100%); /* Dégradé au survol */
+            transform: translateY(-4px) scale(1.01); /* Soulèvement et léger agrandissement */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7), inset 0 2px 6px rgba(255, 255, 255, 0.2);
+            border-color: #4299e1;
         }
         .menu-button:active {
             transform: translateY(0) scale(1);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), inset 0 1px 3px rgba(255, 255, 255, 0.1);
-            background: linear-gradient(145deg, #3182ce 0%, #4299e1 100%);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 1px 3px rgba(255, 255, 255, 0.1);
+            background: linear-gradient(145deg, #1a202c 0%, #2a3d5e 100%);
+        }
+
+        /* Effets de tir/éclairs dans le fond du menu */
+        @keyframes shooting-effect {
+            0% {
+                opacity: 0;
+                transform: translate(0, 0) scale(0.5);
+                filter: brightness(1);
+            }
+            10% {
+                opacity: 1;
+                transform: translate(calc(var(--rand-x) * 1vw), calc(var(--rand-y) * 1vh)) scale(1.5);
+                filter: brightness(2);
+            }
+            20% {
+                opacity: 0;
+                transform: translate(calc(var(--rand-x) * 2vw), calc(var(--rand-y) * 2vh)) scale(0.8);
+                filter: brightness(1);
+            }
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .shooting-flash {
+            position: absolute;
+            width: 50px; /* Taille de l'éclair */
+            height: 50px;
+            background: radial-gradient(circle, rgba(255, 255, 150, 0.8) 0%, rgba(255, 165, 0, 0) 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1; /* Derrière les boutons */
+            animation: shooting-effect 3s infinite ease-out; /* Animation sur 3 secondes */
+            /* Variables CSS pour des positions et délais aléatoires */
+            --rand-x: 0; /* Sera défini par JS */
+            --rand-y: 0; /* Sera défini par JS */
+            --rand-delay: 0s; /* Sera défini par JS */
+            animation-delay: var(--rand-delay);
         }
 
         #info-box {
@@ -200,6 +250,7 @@
             align-items: center;
             display: none; /* Caché par défaut, montré par JS */
             margin-top: 20px; /* Espace par rapport au titre */
+            z-index: 2; /* S'assure que les paramètres sont au-dessus des effets */
         }
         #settings-section h2 {
             font-size: 2rem;
@@ -296,7 +347,7 @@
     <!-- Nouveau menu principal -->
     <div id="main-menu">
         <h1 id="main-menu-title">AlexShooter</h1>
-        <div id="menu-buttons-container">
+        <div id="menu-buttons-container" class="menu-buttons-wrapper">
             <button id="start-game-button" class="menu-button">Démarrer le jeu</button>
             <button id="main-menu-settings-button" class="menu-button">Paramètres</button>
         </div>
@@ -332,7 +383,7 @@
             </div>
             
             <button id="reset-keys-button" class="menu-button">Réinitialiser les touches</button>
-            <button id="back-to-main-menu-button">Retour au Menu Principal</button>
+            <button id="back-to-main-menu-button" class="menu-button">Retour au Menu Principal</button>
         </div>
     </div>
 
@@ -381,6 +432,9 @@
         let isRemappingKey = false; // Indique si une touche est en cours de remappage
         let currentRemapButton = null; // Référence au bouton de remappage actuellement actif
         let currentRemapAction = null; // L'action en cours de remappage (e.g., 'moveForward')
+
+        const NUM_SHOOTING_EFFECTS = 5; // Nombre d'effets de tir simultanés
+        let shootingEffectElements = []; // Tableau pour stocker les éléments d'effet de tir
 
         // --- Fonctions d'aide globales (définies avant init() pour la portée) ---
 
@@ -679,6 +733,8 @@
             isSettingsScreen = false;
             // Met à jour les boutons de remappage des touches avec les liaisons actuelles lors du retour au menu
             updateKeyRemapButtons();
+            // Réactive les animations de fond du menu
+            shootingEffectElements.forEach(el => el.style.display = 'block');
             console.log("Affichage de l'écran du menu principal.");
         }
 
@@ -692,6 +748,8 @@
             infoBox.style.display = 'none';
             gameActive = false;
             isSettingsScreen = true;
+            // Désactive les animations de fond du menu quand les paramètres sont ouverts
+            shootingEffectElements.forEach(el => el.style.display = 'none');
             console.log("Affichage de l'écran des paramètres. isSettingsScreen:", isSettingsScreen);
 
             // Met à jour la valeur du curseur et le texte lors de l'affichage des paramètres
@@ -770,6 +828,21 @@
                 resetKeysButton.addEventListener('click', resetKeysToDefault);
             }
 
+            // Création des effets de tir pour le menu
+            for (let i = 0; i < NUM_SHOOTING_EFFECTS; i++) {
+                const flash = document.createElement('div');
+                flash.classList.add('shooting-flash');
+                // Position aléatoire initiale
+                flash.style.left = `${Math.random() * 100}vw`;
+                flash.style.top = `${Math.random() * 100}vh`;
+                // Définir les variables CSS pour l'animation
+                flash.style.setProperty('--rand-x', (Math.random() - 0.5) * 2); // De -1 à 1
+                flash.style.setProperty('--rand-y', (Math.random() - 0.5) * 2);
+                flash.style.setProperty('--rand-delay', `${Math.random() * 2}s`); // Délai aléatoire
+                mainMenuDiv.appendChild(flash);
+                shootingEffectElements.push(flash);
+            }
+
             // --- Lumières ---
             const ambientLight = new THREE.AmbientLight(0x404040, 2); // Lumière ambiante douce
             scene.add(ambientLight);
@@ -788,20 +861,7 @@
             groundTexture.repeat.set(10, 10); // Répéter la texture pour couvrir le sol
 
             // Texture pour les bâtiments (béton usé/rouille)
-            const buildingTexture = textureLoader.load('https://placehold.co/512x512/606060/D4AF37.png');
-            buildingTexture.wrapS = THREE.RepeatWrapping;
-            buildingTexture.wrapT = THREE.RepeatWrapping;
-            buildingTexture.repeat.set(2, 2); // Répéter la texture sur les bâtiments
-
-            // --- Création du sol ---
-            const groundGeometry = new THREE.PlaneGeometry(100, 100);
-            const groundMaterial = new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 0.8, metalness: 0.2 });
-            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-            ground.rotation.x = -Math.PI / 2; // Pivote le plan pour qu'il soit horizontal
-            scene.add(ground);
-
-            // --- Création de la ville apocalyptique (bâtiments) ---
-            const buildingMaterial = new THREE.MeshStandardMaterial({ map: buildingTexture, roughness: 0.7, metalness: 0.1 });
+            const buildingMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7, metalness: 0.1 });
             for (let i = 0; i < 50; i++) {
                 const buildingWidth = Math.random() * 5 + 2;
                 const buildingDepth = Math.random() * 5 + 2;
