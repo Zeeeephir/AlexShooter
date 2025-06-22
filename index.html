@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlexShooter</title>
+    <!-- Chargement de Three.js pour la 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Chargement de la police Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome pour l'icône de paramètres -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Styles réinitialisés pour éviter les conflits */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Couleur de fond sombre */
+            color: #e2e8f0; /* Couleur de texte claire */
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background-color: #2d3748;
+            display: none; /* Caché par défaut, montré quand le jeu est lancé */
+        }
+        #main-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            /* Fond plus attractif pour le menu principal */
+            background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 103;
+            text-align: center;
+        }
+        #main-menu h1 {
+            font-size: 5rem; /* Plus grand titre */
+            font-weight: 800; /* Plus gras */
+            margin-bottom: 60px; /* Plus d'espace */
+            color: #ffffff; /* Blanc pur pour le contraste */
+            text-shadow: 0 5px 15px rgba(0, 0, 0, 0.5), 0 0 20px rgba(66, 153, 225, 0.7); /* Ombre plus prononcée */
+            letter-spacing: 5px; /* Espacement des lettres */
+            transition: all 0.3s ease-in-out;
+        }
+        #main-menu h1:hover {
+            transform: scale(1.02);
+            color: #4299e1;
+            text-shadow: 0 5px 20px rgba(66, 153, 225, 0.9), 0 0 30px rgba(66, 153, 225, 0.9);
+        }
+        .menu-button {
+            background-color: #4299e1;
+            background: linear-gradient(145deg, #4299e1 0%, #3182ce 100%); /* Dégradé pour les boutons */
+            color: white;
+            padding: 18px 40px; /* Plus grand padding */
+            margin: 15px 0; /* Plus d'espace entre les boutons */
+            border-radius: 12px; /* Coins plus arrondis */
+            border: none;
+            cursor: pointer;
+            font-size: 1.8rem; /* Plus grande police */
+            font-weight: bold;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), inset 0 2px 5px rgba(255, 255, 255, 0.2); /* Ombre et incrustation */
+            width: 300px; /* Largeur fixe */
+            letter-spacing: 1px;
+            position: relative; /* Pour l'effet de bordure */
+            overflow: hidden; /* Cache les débordements du pseudo-élément */
+        }
+        .menu-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.4s ease-in-out;
+            transform: skewX(-20deg);
+        }
+        .menu-button:hover::before {
+            left: 100%;
+        }
+        .menu-button:hover {
+            background-color: #3182ce;
+            transform: translateY(-5px) scale(1.02); /* Soulèvement et léger agrandissement */
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), inset 0 2px 7px rgba(255, 255, 255, 0.3);
+        }
+        .menu-button:active {
+            transform: translateY(0) scale(1);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), inset 0 1px 3px rgba(255, 255, 255, 0.1);
+            background: linear-gradient(145deg, #3182ce 0%, #4299e1 100%);
+        }
+
+        #info-box {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            font-size: 1.1rem;
+            max-width: 90%;
+            z-index: 100;
+            display: none;
+        }
+        #controls-info {
+            font-size: 0.9rem;
+            margin-top: 10px;
+            color: #a0aec0;
+        }
+        #message-box {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 0, 0.8);
+            color: #333;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            font-weight: bold;
+            display: none;
+            z-index: 99;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 1px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            z-index: 100;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: white;
+        }
+        #crosshair::before {
+            width: 2px;
+            height: 10px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        #crosshair::after {
+            width: 10px;
+            height: 2px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .aiming #crosshair {
+            border-color: red;
+            box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+        }
+        .aiming #crosshair::before, .aiming #crosshair::after {
+            background-color: red;
+        }
+
+        /* Styles pour la section des paramètres dans le menu principal */
+        #settings-section {
+            background-color: #2d3748; /* Fond sombre pour la section paramètres */
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+            min-height: 250px;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            display: none; /* Caché par défaut, montré par JS */
+            margin-top: 20px; /* Espace par rapport au titre */
+        }
+        #settings-section h2 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            color: #4299e1;
+        }
+        #settings-section label,
+        #settings-section p {
+            display: block;
+            margin: 5px auto;
+            color: #e2e8f0;
+            width: 100%;
+            text-align: center;
+        }
+        #settings-section input[type="range"] {
+            width: 80%;
+            margin: 10px auto;
+            background-color: #555555;
+            -webkit-appearance: none;
+            height: 8px;
+            border-radius: 4px;
+        }
+        #settings-section input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4299e1;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        #settings-section .controls-group {
+            display: block;
+            margin: 15px auto;
+            color: #e2e8f0;
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .key-remap-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 80%;
+            margin: 8px auto;
+            padding: 5px 10px;
+            background-color: rgba(255, 255, 255, 0.08);
+            border-radius: 5px;
+        }
+        .key-remap-row span {
+            font-size: 1rem;
+            color: #cbd5e0;
+        }
+        .key-remap-button {
+            background-color: #63b3ed; /* Light blue for buttons */
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            min-width: 60px; /* Ensure consistent width */
+            text-align: center;
+            transition: background-color 0.15s;
+        }
+        .key-remap-button:hover {
+            background-color: #4299e1;
+        }
+        .key-remap-button.active {
+            background-color: #f6ad55; /* Orange when remapping */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+    <div id="game-container" class="relative w-screen h-screen overflow-hidden">
+        <div id="info-box" class="rounded-xl">
+            <h1 class="text-2xl font-bold mb-2">Bienvenue dans AlexShooter !</h1>
+            <p>Cliquez n'importe où pour commencer le jeu et bloquer votre souris.</p>
+            <p id="controls-info">Contrôles par défaut (AZERTY) : Z pour Avancer, Q pour Strafe Gauche, S pour Reculer, D pour Strafe Droite. Clic gauche pour Tirer, Clic droit pour Viser.</p>
+        </div>
+        <div id="message-box" class="hidden"></div>
+        <div id="crosshair"></div>
+
+        <!-- Le bouton paramètres en jeu est toujours là, mais caché quand les paramètres sont dans le menu principal -->
+        <button id="settings-button" class="rounded-lg" style="display: none;">
+            <i class="fas fa-cog"></i> Paramètres
+        </button>
+
+        <!-- Pas de modal settings-modal indépendant ici -->
+        <!-- Le canvas sera ajouté ici par Three.js -->
+    </div>
+
+    <!-- Nouveau menu principal -->
+    <div id="main-menu">
+        <h1 id="main-menu-title">AlexShooter</h1>
+        <div id="menu-buttons-container">
+            <button id="start-game-button" class="menu-button">Démarrer le jeu</button>
+            <button id="main-menu-settings-button" class="menu-button">Paramètres</button>
+        </div>
+
+        <!-- Section des paramètres intégrée au menu principal -->
+        <div id="settings-section">
+            <h2>Paramètres du Jeu</h2>
+            <label for="sensitivity-slider">Sensibilité de la souris:</label>
+            <input type="range" id="sensitivity-slider" min="0.0005" max="0.005" step="0.0001" value="0.002">
+            <p>Sensibilité actuelle: <span id="current-sensitivity">0.002</span></p>
+
+            <div class="controls-group">
+                <label>Changer les touches de déplacement :</label>
+                <div class="key-remap-row">
+                    <span>Avancer:</span> <button id="remap-moveForward" class="key-remap-button">Z</button>
+                </div>
+                <div class="key-remap-row">
+                    <span>Reculer:</span> <button id="remap-moveBackward" class="key-remap-button">S</button>
+                </div>
+                <div class="key-remap-row">
+                    <span>Strafe Gauche:</span> <button id="remap-strafeLeft" class="key-remap-button">Q</button>
+                </div>
+                <div class="key-remap-row">
+                    <span>Strafe Droite:</span> <button id="remap-strafeRight" class="key-remap-button">D</button>
+                </div>
+            </div>
+
+            <div class="controls-group">
+                <label>Autres contrôles :</label>
+                <p>Tirer: Clic Gauche</p>
+                <p>Viser: Clic Droit</p>
+                <p>Retour au menu principal/Paramètres: Échap</p>
+            </div>
+            
+            <button id="reset-keys-button" class="menu-button">Réinitialiser les touches</button>
+            <button id="back-to-main-menu-button">Retour au Menu Principal</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Variables Globales Three.js ---
+        let scene, camera, renderer;
+        let playerContainer; // Conteneur pour la caméra et le joueur pour la rotation horizontale
+        let playerVelocity = new THREE.Vector3(); // Vitesse du joueur
+        const moveSpeed = 0.1; // Vitesse de déplacement du joueur
+        let rotationSpeed = 0.002; // Vitesse de rotation de la caméra (maintenant modifiable)
+        let keyboard = {}; // État des touches du clavier (pressée/relâchée)
+        let isAiming = false; // État du clic droit (viser)
+        let enemies = []; // Tableau pour stocker les ennemis
+        let raycaster = new THREE.Raycaster(); // Pour la détection de tir
+        let messageBox; // Référence à la boîte de message UI
+        let gameActive = false; // Pour savoir si le jeu est actif (après clic initial)
+        let crosshair; // Référence au viseur
+        let weaponMesh; // Référence au maillage de l'arme (modèle 3D)
+        let armMesh; // Référence au maillage du bras (modèle 3D)
+
+        // UI Elements
+        let mainMenuDiv, gameContainer, infoBox, settingsSection;
+        let startGameButton, mainMenuSettingsButton, backToMainMenuButton, resetKeysButton;
+        let sensitivitySlider, currentSensitivityDisplay;
+
+        // State
+        let isSettingsScreen = false; // Vrai si l'écran des paramètres est affiché, Faux si le menu principal est affiché
+
+        // Variables de remappage des touches. Ces codes sont les 'event.code' des touches.
+        // Les codes sont basés sur le layout QWERTY standard pour la robustesse du remappage.
+        // L'affichage pour l'utilisateur sera en AZERTY grâce à formatKeyCode.
+        let keyBindings = {
+            'moveForward': 'KeyW', // Correspond à la touche physique 'Z' sur un clavier AZERTY
+            'moveBackward': 'KeyS', // Correspond à la touche physique 'S'
+            'strafeLeft': 'KeyA',   // Correspond à la touche physique 'Q' sur un clavier AZERTY
+            'strafeRight': 'KeyD'   // Correspond à la touche physique 'D'
+        };
+        // Copie des valeurs par défaut pour la réinitialisation
+        const defaultKeyBindings = {
+            'moveForward': 'KeyW',
+            'moveBackward': 'KeyS',
+            'strafeLeft': 'KeyA',
+            'strafeRight': 'KeyD'
+        };
+
+        let isRemappingKey = false; // Indique si une touche est en cours de remappage
+        let currentRemapButton = null; // Référence au bouton de remappage actuellement actif
+        let currentRemapAction = null; // L'action en cours de remappage (e.g., 'moveForward')
+
+        // --- Fonctions d'aide globales (définies avant init() pour la portée) ---
+
+        // Fonction pour gérer les événements keydown du jeu (déplacements, Échap)
+        function handleGameKeydown(event) {
+            keyboard[event.code] = true;
+            if (event.code === 'Escape') {
+                if (gameActive) { // Si le jeu est actif (pointeur verrouillé)
+                    showSettingsScreen(); // Ouvre les paramètres
+                    document.exitPointerLock(); // Relâche le pointeur
+                } else if (isSettingsScreen) { // Si les paramètres sont déjà ouverts (Échap pour revenir au menu principal)
+                    showMenuScreen(); // Retourne au menu principal
+                }
+                event.preventDefault(); // Empêche le comportement par défaut de la touche Échap (ex: quitter le plein écran)
+            }
+        }
+
+        // Fonction pour gérer les événements keyup du jeu
+        function handleGameKeyup(event) {
+            keyboard[event.code] = false;
+        }
+
+        // Helper pour formater les codes de touche pour l'affichage (ex: 'KeyW' devient 'Z' pour AZERTY)
+        function formatKeyCode(code) {
+            if (!code) return ""; // Gère les cas nuls/indéfinis
+            // Ces mappings sont spécifiques pour AZERTY afin que l'affichage corresponde à la touche physique
+            switch (code) {
+                case 'KeyW': return 'Z'; // Touche physique 'Z' sur AZERTY (correspond à KeyW en QWERTY)
+                case 'KeyA': return 'Q'; // Touche physique 'Q' sur AZERTY (correspond à KeyA en QWERTY)
+                case 'KeyS': return 'S'; // Touche physique 'S' (identique)
+                case 'KeyD': return 'D'; // Touche physique 'D' (identique)
+                case 'Space': return 'Espace';
+                case 'ControlLeft': return 'Ctrl Gauche';
+                case 'ControlRight': return 'Ctrl Droit';
+                case 'AltLeft': return 'Alt Gauche';
+                case 'AltRight': return 'Alt Droit';
+                case 'ShiftLeft': return 'Maj Gauche';
+                case 'ShiftRight': return 'Maj Droit';
+                case 'Enter': return 'Entrée';
+                case 'Backspace': return 'Retour Arrière';
+                case 'Tab': return 'Tab';
+                case 'CapsLock': return 'Verrou Maj';
+                case 'ArrowUp': return 'Flèche Haut';
+                case 'ArrowDown': return 'Flèche Bas';
+                case 'ArrowLeft': return 'Flèche Gauche';
+                case 'ArrowRight': return 'Flèche Droite';
+                // Cas générique pour les autres touches si elles commencent par 'Key' ou 'Digit'
+                default:
+                    if (code.startsWith('Key')) return code.substring(3);
+                    if (code.startsWith('Digit')) return code.substring(5);
+                    return code; // Retourne le code brut si non reconnu
+            }
+        }
+
+        // Helper pour formater les noms d'action pour les messages
+        function formatActionName(action) {
+            switch(action) {
+                case 'moveForward': return 'Avancer';
+                case 'moveBackward': return 'Reculer';
+                case 'strafeLeft': return 'Strafe Gauche';
+                case 'strafeRight': return 'Strafe Droite';
+                default: return action; // Ne devrait pas arriver pour les actions prédéfinies
+            }
+        }
+
+        // Fonction pour mettre à jour le texte des boutons de remappage de touches
+        function updateKeyRemapButtons() {
+            document.getElementById('remap-moveForward').textContent = formatKeyCode(keyBindings.moveForward);
+            document.getElementById('remap-moveBackward').textContent = formatKeyCode(keyBindings.moveBackward);
+            document.getElementById('remap-strafeLeft').textContent = formatKeyCode(keyBindings.strafeLeft);
+            document.getElementById('remap-strafeRight').textContent = formatKeyCode(keyBindings.strafeRight);
+        }
+
+        // Fonction pour démarrer le processus de remappage d'une touche
+        function startRemap(action, buttonElement) {
+            if (isRemappingKey) return; // Empêche le remappage de plusieurs touches à la fois
+
+            isRemappingKey = true;
+            currentRemapAction = action;
+            currentRemapButton = buttonElement;
+
+            currentRemapButton.textContent = "Appuyez sur une touche...";
+            currentRemapButton.classList.add('active'); // Ajoute un état actif pour le style
+
+            // Supprime les écouteurs d'événements keydown/keyup du jeu existants pour éviter les conflits pendant le remappage
+            document.removeEventListener('keydown', handleGameKeydown);
+            document.removeEventListener('keyup', handleGameKeyup);
+
+            // Ajoute un écouteur temporaire pour la prochaine touche pressée (n'écoute qu'une fois)
+            document.addEventListener('keydown', handleRemapKeydown, { once: true });
+        }
+
+        // Gestionnaire pour l'événement keydown de remappage
+        function handleRemapKeydown(event) {
+            event.preventDefault(); // Empêche l'action par défaut du navigateur pour la touche
+
+            if (event.code === 'Escape') { // Permet à Échap d'annuler le remappage
+                endRemap(currentRemapAction, null); // Annule le remappage
+                return;
+            }
+
+            const newKey = event.code; // Utilise event.code pour la fiabilité multi-clavier (QWERTY-based)
+            endRemap(currentRemapAction, newKey);
+        }
+
+        // Fonction pour terminer le processus de remappage d'une touche
+        function endRemap(action, newKey) {
+            if (newKey) {
+                keyBindings[action] = newKey;
+                showMessage(`${formatActionName(action)} remappé à ${formatKeyCode(newKey)}`, 2000);
+            } else {
+                // Si annulé, rétablit le texte du bouton sur l'ancienne touche
+                showMessage(`Remappage de ${formatActionName(action)} annulé.`, 2000);
+            }
+
+            // Met toujours à jour le bouton pour refléter la liaison actuelle (ou ancienne)
+            if (currentRemapButton) {
+                currentRemapButton.textContent = formatKeyCode(keyBindings[action]);
+                currentRemapButton.classList.remove('active');
+            }
+
+            isRemappingKey = false;
+            currentRemapAction = null;
+            currentRemapButton = null;
+
+            // Réactive les écouteurs d'événements keydown/keyup du jeu originaux
+            document.addEventListener('keydown', handleGameKeydown);
+            document.addEventListener('keyup', handleGameKeyup);
+        }
+
+        // Fonction pour réinitialiser les touches aux valeurs par défaut
+        function resetKeysToDefault() {
+            // Remet les keyBindings aux valeurs AZERTY par défaut (codes QWERTY)
+            keyBindings.moveForward = defaultKeyBindings.moveForward;
+            keyBindings.moveBackward = defaultKeyBindings.moveBackward;
+            keyBindings.strafeLeft = defaultKeyBindings.strafeLeft;
+            keyBindings.strafeRight = defaultKeyBindings.strafeRight;
+            updateKeyRemapButtons(); // Met à jour l'affichage des boutons
+            showMessage("Touches réinitialisées aux valeurs par défaut.", 2000);
+        }
+
+        // Fonction de gestion du redimensionnement de la fenêtre
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Fonction de gestion du mouvement de la souris (rotation de la caméra)
+        function onMouseMove(event) {
+            if (gameActive) {
+                const deltaX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+                const deltaY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+                // Appliquer le mouvement horizontal (yaw) au conteneur du joueur
+                playerContainer.rotation.y -= deltaX * rotationSpeed;
+
+                // Appliquer le mouvement vertical (pitch) à la caméra elle-même
+                let newPitch = camera.rotation.x - deltaY * rotationSpeed;
+                // On limite la rotation pour éviter de regarder trop haut/bas et de voir sous le joueur
+                newPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, newPitch)); // Limite entre -90 et 90 degrés
+                camera.rotation.x = newPitch;
+
+                // Ajuster légèrement la rotation du bras/arme avec le mouvement vertical de la caméra
+                if (armMesh) {
+                    armMesh.rotation.x = -Math.PI / 6 + (camera.rotation.x * 0.2); // Maintient l'inclinaison relative
+                }
+            }
+        }
+
+        // Fonction de gestion du clic de souris
+        function onMouseDown(event) {
+            if (!gameActive) return;
+
+            if (event.button === 0) { // Clic gauche (Tirer)
+                shoot();
+            } else if (event.button === 2) { // Clic droit (Viser)
+                isAiming = true;
+                document.body.classList.add('aiming'); // Ajoute une classe pour le viseur
+                showMessage("Visée activée !", 1000);
+                // Animer l'arme vers une position de visée
+                if (armMesh) {
+                    // Position de visée: plus centré, légèrement relevé
+                    armMesh.position.set(0, -0.4, -0.8);
+                    armMesh.rotation.x = -Math.PI / 10; // Moins incliné
+                }
+            }
+        }
+
+        // Fonction de gestion du relâchement du clic de souris
+        function onMouseUp(event) {
+            if (!gameActive) return;
+
+            if (event.button === 2) { // Clic droit (relâcher la visée)
+                isAiming = false;
+                document.body.classList.remove('aiming'); // Supprime la classe du viseur
+                // Remettre l'arme en position normale
+                if (armMesh) {
+                    // Position de repos
+                    armMesh.position.set(0.5, -0.7, -1.0);
+                    armMesh.rotation.x = -Math.PI / 6;
+                }
+            }
+        }
+
+        // Fonction pour afficher un message temporaire
+        function showMessage(text, duration = 2000) {
+            messageBox.textContent = text;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, duration);
+        }
+
+        // Fonction de tir (Clic gauche)
+        function shoot() {
+            if (!gameActive) return;
+
+            // Définir le point d'origine du rayon (position de la caméra) et la direction (direction de la caméra)
+            raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+
+            // Obtenir les intersections avec les ennemis
+            const intersects = raycaster.intersectObjects(enemies, true);
+
+            if (intersects.length > 0) {
+                // Un ennemi a été touché !
+                const hitEnemy = intersects[0].object;
+                scene.remove(hitEnemy); // Supprime l'ennemi de la scène
+                enemies = enemies.filter(enemy => enemy !== hitEnemy); // Le retire du tableau des ennemis
+                showMessage("Ennemi touché ! (" + enemies.length + " restants)", 1500);
+
+                if (enemies.length === 0) {
+                    showMessage("Félicitations, tous les ennemis sont éliminés !", 5000);
+                }
+            } else {
+                showMessage("Manqué !", 1000);
+            }
+        }
+
+        // Boucle d'animation principale
+        function animate() {
+            requestAnimationFrame(animate); // Demande la prochaine frame
+
+            if (gameActive) {
+                // Réinitialiser la vélocité
+                playerVelocity.set(0, 0, 0);
+
+                // Utilisation de la direction réelle de la caméra pour un mouvement correct
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward); // Obtient le vecteur Z négatif de la caméra
+                forward.y = 0; // Annule le mouvement vertical pour l'avant/arrière
+                forward.normalize();
+
+                const right = new THREE.Vector3();
+                right.setFromMatrixColumn(camera.matrix, 0); // Obtient le vecteur X de la caméra
+                right.y = 0; // Annule le mouvement vertical pour le strafe
+                right.normalize();
+
+                // Mouvement basé sur les keyBindings (maintenant corrigé pour AZERTY)
+                // Avancer: utilise le vecteur 'forward' (correctement orienté par la caméra)
+                if (keyboard[keyBindings.moveForward]) {
+                    playerVelocity.addScaledVector(forward, moveSpeed);
+                }
+                // Reculer: utilise le vecteur 'forward' inversé
+                if (keyboard[keyBindings.moveBackward]) {
+                    playerVelocity.addScaledVector(forward, -moveSpeed);
+                }
+                // Strafe Gauche: utilise le vecteur 'right' inversé
+                if (keyboard[keyBindings.strafeLeft]) {
+                    playerVelocity.addScaledVector(right, -moveSpeed);
+                }
+                // Strafe Droite: utilise le vecteur 'right'
+                if (keyboard[keyBindings.strafeRight]) {
+                    playerVelocity.addScaledVector(right, moveSpeed);
+                }
+
+                // Appliquer la vélocité à la position du conteneur du joueur
+                playerContainer.position.add(playerVelocity);
+
+                // Déplacer le joueur uniquement sur le plan XZ (pas de vol)
+                playerContainer.position.y = 1.7; // Garde la hauteur du joueur constante
+            }
+
+            renderer.render(scene, camera); // Rendre la scène
+        }
+
+        // Fonction pour afficher le menu principal
+        function showMenuScreen() {
+            mainMenuDiv.style.display = 'flex';
+            document.getElementById('main-menu-title').style.display = 'block';
+            document.getElementById('menu-buttons-container').style.display = 'flex';
+            settingsSection.style.display = 'none'; // Cache la section des paramètres
+            gameContainer.style.display = 'none';
+            infoBox.style.display = 'none';
+            gameActive = false;
+            isSettingsScreen = false;
+            // Met à jour les boutons de remappage des touches avec les liaisons actuelles lors du retour au menu
+            updateKeyRemapButtons();
+            console.log("Affichage de l'écran du menu principal.");
+        }
+
+        // Fonction pour afficher l'écran des paramètres
+        function showSettingsScreen() {
+            mainMenuDiv.style.display = 'flex';
+            document.getElementById('main-menu-title').style.display = 'none'; // Cache le titre du menu principal
+            document.getElementById('menu-buttons-container').style.display = 'none'; // Cache les boutons du menu principal
+            settingsSection.style.display = 'flex'; // Affiche la section des paramètres
+            gameContainer.style.display = 'none';
+            infoBox.style.display = 'none';
+            gameActive = false;
+            isSettingsScreen = true;
+            console.log("Affichage de l'écran des paramètres. isSettingsScreen:", isSettingsScreen);
+
+            // Met à jour la valeur du curseur et le texte lors de l'affichage des paramètres
+            if (sensitivitySlider && currentSensitivityDisplay) {
+                sensitivitySlider.value = rotationSpeed;
+                currentSensitivityDisplay.textContent = rotationSpeed.toFixed(4);
+            }
+            // Met à jour les boutons de remappage des touches avec les liaisons actuelles
+            updateKeyRemapButtons();
+        }
+
+
+        // --- Fonction d'initialisation du jeu ---
+        function init() {
+            // Initialisation de la scène
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x333333); // Ciel sombre/gris
+
+            // Création du conteneur du joueur (pour la rotation horizontale)
+            playerContainer = new THREE.Object3D();
+            playerContainer.position.set(0, 1.7, 5); // Position de départ du joueur (y = hauteur)
+            scene.add(playerContainer);
+
+            // Initialisation de la caméra (enfant du conteneur du joueur)
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 0); // La caméra est à l'origine de son parent (playerContainer)
+            playerContainer.add(camera);
+
+            // Initialisation du rendu
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio); // Pour une meilleure qualité sur les écrans HiDPI
+            document.getElementById('game-container').appendChild(renderer.domElement); // Ajoute le canvas au DOM
+
+            // Récupération des éléments UI
+            messageBox = document.getElementById('message-box');
+            crosshair = document.getElementById('crosshair');
+            
+            mainMenuDiv = document.getElementById('main-menu');
+            gameContainer = document.getElementById('game-container');
+            infoBox = document.getElementById('info-box');
+
+            // Main Menu Buttons
+            startGameButton = document.getElementById('start-game-button');
+            mainMenuSettingsButton = document.getElementById('main-menu-settings-button');
+            
+            // Elements de la section Paramètres
+            settingsSection = document.getElementById('settings-section');
+            sensitivitySlider = document.getElementById('sensitivity-slider');
+            currentSensitivityDisplay = document.getElementById('current-sensitivity').querySelector('span');
+            backToMainMenuButton = document.getElementById('back-to-main-menu-button');
+            resetKeysButton = document.getElementById('reset-keys-button'); // Récupération du bouton Réinitialiser
+
+            // Initialise la valeur du curseur et attache l'écouteur
+            if (sensitivitySlider) {
+                sensitivitySlider.value = rotationSpeed;
+                sensitivitySlider.addEventListener('input', (event) => {
+                    rotationSpeed = parseFloat(event.target.value);
+                    if (currentSensitivityDisplay) {
+                        currentSensitivityDisplay.textContent = rotationSpeed.toFixed(4);
+                    }
+                });
+            }
+            if (currentSensitivityDisplay) {
+                currentSensitivityDisplay.textContent = rotationSpeed.toFixed(4); // Affiche la sensibilité initiale
+            }
+
+            // Attache les écouteurs pour les boutons de remappage des touches
+            document.getElementById('remap-moveForward').addEventListener('click', (event) => startRemap('moveForward', event.target));
+            document.getElementById('remap-moveBackward').addEventListener('click', (event) => startRemap('moveBackward', event.target));
+            document.getElementById('remap-strafeLeft').addEventListener('click', (event) => startRemap('strafeLeft', event.target));
+            document.getElementById('remap-strafeRight').addEventListener('click', (event) => startRemap('strafeRight', event.target));
+            
+            // Attache l'écouteur pour le bouton Réinitialiser les touches
+            if (resetKeysButton) {
+                resetKeysButton.addEventListener('click', resetKeysToDefault);
+            }
+
+            // --- Lumières ---
+            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Lumière ambiante douce
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // Lumière directionnelle (soleil/lune)
+            directionalLight.position.set(5, 10, 7);
+            scene.add(directionalLight);
+
+            // --- Chargement des textures ---
+            const textureLoader = new THREE.TextureLoader();
+
+            // Texture pour le sol (asphalte/débris rouillé)
+            const groundTexture = textureLoader.load('https://placehold.co/1024x1024/303030/808080.png');
+            groundTexture.wrapS = THREE.RepeatWrapping;
+            groundTexture.wrapT = THREE.RepeatWrapping;
+            groundTexture.repeat.set(10, 10); // Répéter la texture pour couvrir le sol
+
+            // Texture pour les bâtiments (béton usé/rouille)
+            const buildingTexture = textureLoader.load('https://placehold.co/512x512/606060/D4AF37.png');
+            buildingTexture.wrapS = THREE.RepeatWrapping;
+            buildingTexture.wrapT = THREE.RepeatWrapping;
+            buildingTexture.repeat.set(2, 2); // Répéter la texture sur les bâtiments
+
+            // --- Création du sol ---
+            const groundGeometry = new THREE.PlaneGeometry(100, 100);
+            const groundMaterial = new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 0.8, metalness: 0.2 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2; // Pivote le plan pour qu'il soit horizontal
+            scene.add(ground);
+
+            // --- Création de la ville apocalyptique (bâtiments) ---
+            const buildingMaterial = new THREE.MeshStandardMaterial({ map: buildingTexture, roughness: 0.7, metalness: 0.1 });
+            for (let i = 0; i < 50; i++) {
+                const buildingWidth = Math.random() * 5 + 2;
+                const buildingDepth = Math.random() * 5 + 2;
+                const buildingHeight = Math.random() * 15 + 5; // Hauteur variable
+
+                const buildingGeometry = new THREE.BoxGeometry(buildingWidth, buildingHeight, buildingDepth);
+                const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+
+                // Position aléatoire, mais sur le sol et sans chevauchement excessif
+                building.position.x = (Math.random() - 0.5) * 80;
+                building.position.z = (Math.random() - 0.5) * 80;
+                building.position.y = buildingHeight / 2; // Pour que la base soit sur le sol
+
+                scene.add(building);
+            }
+
+            // --- Création des ennemis ---
+            const enemyMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.5, metalness: 0.1 }); // Ennemis rouges
+            for (let i = 0; i < 10; i++) {
+                const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
+                const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+
+                enemy.position.x = (Math.random() - 0.5) * 60;
+                enemy.position.y = 0.5; // Sur le sol
+                enemy.position.z = (Math.random() - 0.5) * 60;
+                scene.add(enemy);
+                enemies.push(enemy);
+            }
+
+            // --- Création du bras et de l'arme FPV ---
+            const armMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Couleur peau/brun
+            const weaponMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7, metalness: 0.5 }); // Couleur arme gris foncé métallisé
+
+            // Bras (avant-bras simple)
+            const forearmGeometry = new THREE.BoxGeometry(0.35, 0.35, 1.2); // Plus grand et plus long
+            armMesh = new THREE.Mesh(forearmGeometry, armMaterial);
+            armMesh.position.set(0.5, -0.7, -1.0); // Ajuste la position pour plus de visibilité
+            armMesh.rotation.x = -Math.PI / 6; // Angle du bras un peu plus vers l'avant
+            armMesh.rotation.y = Math.PI / 8; // Légèrement vers l'intérieur
+            camera.add(armMesh); // Ajoute le bras comme enfant de la caméra
+
+            // Arme (corps simple mais plus distinct)
+            const weaponBodyGeometry = new THREE.BoxGeometry(0.18, 0.18, 1.0); // Corps de l'arme
+            weaponMesh = new THREE.Mesh(weaponBodyGeometry, weaponMaterial);
+            weaponMesh.position.set(0, 0, -0.4); // Position par rapport au bras
+            armMesh.add(weaponMesh); // Ajoute l'arme comme enfant du bras
+
+            // Canon de l'arme
+            const weaponBarrelGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8); // Canon plus long
+            const weaponBarrelMesh = new THREE.Mesh(weaponBarrelGeometry, weaponMaterial);
+            weaponBarrelMesh.position.set(0, 0, -0.6); // À l'extrémité du corps
+            weaponBarrelMesh.rotation.x = Math.PI / 2; // Pointe en avant
+            weaponMesh.add(weaponBarrelMesh); // Canon enfant du corps de l'arme
+
+
+            // --- Gestion des événements ---
+            // Gestion du redimensionnement de la fenêtre
+            window.addEventListener('resize', onWindowResize, false);
+
+            // Gestion des entrées clavier pour le jeu et les menus (utilisation des fonctions globales)
+            document.addEventListener('keydown', handleGameKeydown);
+            document.addEventListener('keyup', handleGameKeyup);
+
+            // Gestion de la souris (rotation, clic)
+            document.addEventListener('mousemove', onMouseMove, false);
+            document.addEventListener('mousedown', onMouseDown, false);
+            document.addEventListener('mouseup', onMouseUp, false);
+
+            // Désactiver le menu contextuel du clic droit
+            document.addEventListener('contextmenu', (event) => event.preventDefault());
+
+            // Gestion du blocage du pointeur (Pointer Lock API)
+            gameContainer.addEventListener('click', () => {
+                // Tenter de verrouiller le pointeur UNIQUEMENT si le jeu n'est pas actif ET que les paramètres ne sont pas ouverts
+                if (!gameActive && !isSettingsScreen) {
+                    gameContainer.requestPointerLock()
+                        .then(() => {
+                            console.log('Verrouillage du pointeur activé (via promise).');
+                            // La logique de bascule de gameActive et de l'UI est gérée par pointerlockchange
+                        })
+                        .catch((e) => {
+                            // Gère explicitement l'erreur si le verrouillage échoue (ex: SecurityError)
+                            console.warn('Requête de verrouillage du pointeur annulée ou échouée:', e);
+                            showMessage('Verrouillage de la souris annulé ou non accordé. Retour au menu principal.', 3000);
+                            gameActive = false; // S'assure que le jeu est en pause
+                            showMenuScreen(); // Retourne au menu principal
+                        });
+                }
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement === gameContainer) {
+                    // Pointeur verrouillé : le jeu est actif
+                    console.log('Verrouillage du pointeur activé.');
+                    gameActive = true;
+                    isSettingsScreen = false; // Assure que les paramètres ne sont pas actifs
+                    mainMenuDiv.style.display = 'none'; // Cache le menu principal
+                    gameContainer.style.display = 'block'; // Affiche le conteneur du jeu
+                    infoBox.style.display = 'none'; // Cache l'info-box en jeu
+                } else {
+                    // Pointeur relâché : le jeu est en pause
+                    console.log('Verrouillage du pointeur désactivé.');
+                    gameActive = false;
+                    gameContainer.style.display = 'none'; // Cache le conteneur du jeu
+
+                    // Si on était sur l'écran des paramètres avant de relâcher, on y reste.
+                    // Sinon, on retourne au menu principal.
+                    if (!isSettingsScreen) { // Si c'était un déverrouillage générique (comme Échap depuis le jeu)
+                        showMenuScreen();
+                    }
+                    infoBox.style.display = 'block'; // Affiche l'info-box quand le jeu est en pause
+                }
+            });
+
+            document.addEventListener('pointerlockerror', (event) => {
+                console.warn('Erreur lors de la tentative de verrouillage du pointeur:', event);
+                // Si l'erreur se produit et que le pointeur n'est PAS verrouillé au jeu, c'est une indication d'un problème.
+                if (document.pointerLockElement !== gameContainer) {
+                    showMessage('Le verrouillage de la souris a été interrompu ou n\'a pas pu être activé. Retour au menu principal.', 3000);
+                    gameActive = false;
+                    isSettingsScreen = false; // Assure que le modal des paramètres est fermé
+                    showMenuScreen(); // Retourne au menu principal
+                }
+            });
+
+            // Gestion des événements du menu principal
+            startGameButton.addEventListener('click', () => {
+                mainMenuDiv.style.display = 'none';
+                gameContainer.style.display = 'block';
+                gameContainer.requestPointerLock();
+            });
+
+            mainMenuSettingsButton.addEventListener('click', () => {
+                showSettingsScreen(); // Ouvre les paramètres
+            });
+
+            backToMainMenuButton.addEventListener('click', () => {
+                showMenuScreen(); // Retourne au menu principal depuis les paramètres
+            });
+
+            // Lancer la boucle d'animation
+            animate();
+            showMenuScreen(); // Afficher le menu principal au démarrage
+        }
+
+        // Lancement du jeu au chargement de la fenêtre
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+        });
+    </script>
+</body>
+</html>
