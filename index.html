@@ -614,8 +614,8 @@
         // --- Three.js Global Variables ---
         let scene, camera, renderer;
         let playerContainer; // Conteneur pour la caméra et le joueur pour la rotation horizontale
-        let playerVelocity = new THREE.Vector3(); // Vitesse de déplacement du joueur
-        const moveSpeed = 0.1; // Vitesse de déplacement du joueur
+        let playerVelocity; // Déclaré globalement, initialisé dans init()
+        const moveSpeed = 5.0; // Vitesse de déplacement du joueur (augmentée)
         let rotationSpeed = 0.002; // Vitesse de rotation de la caméra (maintenant modifiable)
         let keyboard = {}; // État des touches du clavier (pressée/relâchée)
         let isAiming = false; // État du clic droit (viser)
@@ -627,6 +627,9 @@
         let crosshair; // Référence au viseur
         let weaponMesh; // Référence au maillage de l'arme (modèle 3D)
         let armMesh; // Référence au maillage du bras (modèle 3D)
+
+        // Global ground reference
+        let ground; // Declare ground globally
 
         // UI Elements
         let mainMenuDiv, gameContainer, infoBox, settingsSection;
@@ -1327,11 +1330,11 @@
                     alexPos.clone().add(new THREE.Vector3(0, 0.5, 0)), // Ray origin slightly above ground
                     directionToPlayer,
                     0, // near
-                    ALEX_COLLISION_RADIUS + 1 // look ahead for obstacles
+                    ALEX_COLLISION_RADIUS + 0.5 // look ahead for obstacles (increased sight range)
                 );
                 const AlexIntersects = alexForwardRaycaster.intersectObjects(collidableObjects, true);
 
-                if (AlexIntersects.length > 0 && AlexIntersects[0].distance < ALEX_COLLISION_RADIUS + 0.5) {
+                if (AlexIntersects.length > 0 && AlexIntersects[0].distance < ALEX_COLLISION_RADIUS + 0.2) { // If very close to collision (smaller buffer)
                     // Obstacle detected, try to turn
                     const turnAngle = (Math.random() > 0.5 ? 1 : -1) * Math.PI / 8; // Turn 22.5 degrees randomly
                     desiredMovementVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), turnAngle);
@@ -1530,6 +1533,8 @@
             const geometry = new THREE.BoxGeometry(width, height, depth);
             const mesh = new THREE.Mesh(geometry, material);
             mesh.position.set(x, y, z);
+            // Assurez-vous que les bounding box sont calculées
+            mesh.geometry.computeBoundingBox(); 
             scene.add(mesh);
             collidableObjects.push(mesh);
             return mesh;
@@ -1581,7 +1586,7 @@
             
             // Re-créer le sol principal (qui était peut-être nettoyé)
             const groundGeometry = new THREE.PlaneGeometry(200, 200);
-            const ground = new THREE.Mesh(groundGeometry, floorMaterial); // Utilise floorMaterial pour le sol
+            ground = new THREE.Mesh(groundGeometry, floorMaterial); // Assign to global ground
             ground.rotation.x = -Math.PI / 2;
             scene.add(ground);
             collidableObjects.push(ground);
@@ -1863,6 +1868,7 @@
 
             if (gameActive) {
                 // Réinitialiser la vélocité
+                playerVelocity = playerVelocity || new THREE.Vector3(); // Ensure playerVelocity is defined here.
                 playerVelocity.set(0, 0, 0);
 
                 // Directions pour la détection de collision
@@ -1946,8 +1952,9 @@
                     if (currentDistance < combinedRadius) {
                         const overlap = combinedRadius - currentDistance;
                         if (currentDistance === 0) { // Éviter la division par zéro si les positions sont identiques
-                            distanceVector.x = (Math.random() - 0.5) * 0.1; // Petite perturbation aléatoire
-                            distanceVector.z = (Math.random() - 0.5) * 0.1; // Petite perturbation aléatoire
+                            // Adding a small random component to avoid perfect alignment and continuous pushing
+                            distanceVector.x = (Math.random() - 0.5) * 0.1; 
+                            distanceVector.z = (Math.random() - 0.5) * 0.1; 
                             distanceVector.normalize();
                         } else {
                             distanceVector.normalize();
@@ -2176,6 +2183,9 @@
             renderer.setPixelRatio(window.devicePixelRatio); // Pour une meilleure qualité sur les écrans HiDPI
             document.getElementById('game-container').appendChild(renderer.domElement); // Ajoute le canvas au DOM
 
+            // Initialisation de playerVelocity ici
+            playerVelocity = new THREE.Vector3();
+
             // Récupération des éléments UI
             messageBox = document.getElementById('message-box');
             crosshair = document.getElementById('crosshair');
@@ -2320,7 +2330,7 @@
 
             const groundGeometry = new THREE.PlaneGeometry(200, 200); // Taille augmentée
             const groundMaterial = new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 0.8, metalness: 0.2 });
-            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground = new THREE.Mesh(groundGeometry, groundMaterial); // Assign to global ground
             ground.rotation.x = -Math.PI / 2; // Pivote le plan pour qu'il soit horizontal
             scene.add(ground);
             collidableObjects.push(ground);
