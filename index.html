@@ -250,7 +250,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            display: none; /* Caché par défaut, montré par JS */
+            display: none; /* Caché par default, montré par JS */
             margin-top: 20px; /* Espace par rapport au titre */
             z-index: 2; /* S'assure que les paramètres sont au-dessus des effets */
         }
@@ -1030,26 +1030,54 @@
 
             currentAmmo--;
             updateAmmoDisplay();
-            console.log(`Player shot! Ammo: ${currentAmmo}`); // Debugging shot
+            console.log(`[SHOOT] Player shot! Ammo: ${currentAmmo}`); // Debugging shot
 
             // Définir le point d'origine du rayon (position de la caméra) et la direction (direction de la caméra)
             raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
 
             // Obtenir les intersections avec les ennemis (Alexes)
-            const intersects = raycaster.intersectObjects(alexes.map(a => a.mesh), true); // Intersects alexes' meshes only
+            // On veut intercepter le mesh principal de l'Alex, pas juste ses enfants.
+            const alexMeshes = alexes.map(a => a.mesh);
+            const intersects = raycaster.intersectObjects(alexMeshes, true); 
+
+            console.log(`[SHOOT] Raycast intersects: ${intersects.length} results`, intersects); // LOG: Intersections du tir
 
             if (intersects.length > 0) {
-                const hitObject = intersects[0].object;
-                // Trouver l'instance d'Alex à partir du mesh touché
-                const hitAlex = alexes.find(alex => alex.mesh === hitObject || alex.mesh.children.includes(hitObject)); // Vérifier si c'est le groupe ou un mesh enfant
+                // Trouver la première intersection qui est un Alex
+                // Utiliser userData pour trouver l'instance d'Alex
+                const hitAlexIntersection = intersects.find(intersect => {
+                    let obj = intersect.object;
+                    while (obj) {
+                        if (obj.userData && obj.userData.alexInstance) {
+                            return true; // Found an Alex instance
+                        }
+                        obj = obj.parent;
+                    }
+                    return false;
+                });
 
-                if (hitAlex) { // Double-vérifier que c'est bien un Alex
-                    console.log(`Hit Alex! Alex initial health: ${hitAlex.health}`); // Debug: initial health
-                    hitAlex.takeDamage(10); // Chaque tir inflige 10 dégâts
-                    console.log(`Alex hit! New health: ${hitAlex.health}`); // Debug: new health
+                if (hitAlexIntersection) {
+                    let hitObject = hitAlexIntersection.object;
+                    let hitAlex = null;
+                    while (hitObject && !hitAlex) {
+                        if (hitObject.userData && hitObject.userData.alexInstance) {
+                            hitAlex = hitObject.userData.alexInstance;
+                        }
+                        hitObject = hitObject.parent;
+                    }
+                    
+                    if (hitAlex) { // Double-vérifier que c'est bien un Alex
+                        console.log(`[SHOOT] Hit Alex! Alex ID: ${hitAlex.mesh.uuid}, initial health: ${hitAlex.health}`); // Debug: initial health
+                        hitAlex.takeDamage(10); // Chaque tir inflige 10 dégâts
+                        console.log(`[SHOOT] Alex ${hitAlex.mesh.uuid} hit! New health: ${hitAlex.health}`); // Debug: new health
+                    } else {
+                        console.log("[SHOOT] Found intersection but corresponding Alex object not found after traversal."); // LOG: Alex pas trouvé après intersection
+                    }
+                } else {
+                    console.log("[SHOOT] Raycast hit non-Alex object or no valid Alex found after filter."); // Debug for unexpected hits
                 }
             } else {
-                console.log("Miss! No Alex hit."); // Debug: no hit
+                console.log("[SHOOT] Miss! No Alex hit by raycaster."); // Debug: no hit
             }
         }
 
@@ -1060,7 +1088,7 @@
             if (canJump) {
                 playerVerticalVelocity = jumpStrength;
                 canJump = false;
-                console.log("Player jumped!"); // Debug jump
+                console.log("[PLAYER] Player jumped!"); // Debug jump
             }
         }
 
@@ -1071,7 +1099,7 @@
             if (!isKnifeReady) return;
 
             isKnifeReady = false;
-            console.log("Player performed knife attack!"); // Debug knife attack
+            console.log("[KNIFE] Player performed knife attack!"); // Debug knife attack
 
             // Créer et afficher la lame du couteau
             const bladeGeometry = new THREE.BoxGeometry(0.05, 0.5, 0.05); // Lame fine
@@ -1115,7 +1143,7 @@
                     knifeVisual.position.lerpVectors(swingPos, initialPos, (progress - 0.5) * 2);
                     knifeVisual.rotation.x = THREE.MathUtils.lerp(swingRotation.x, -Math.PI / 6 + (camera.rotation.x * 0.2), (progress - 0.5) * 2);
                     knifeVisual.rotation.y = THREE.MathUtils.lerp(swingRotation.y, Math.PI / 8, (progress - 0.5) * 2);
-                    knifeVisual.rotation.z = THREE.MathUtils.lerp(swingRotation.z, Math.PI / 2, (progress - 0.5) * 2);
+                    knifeVisual.rotation.z = THREE.MathUtils.lerp(Math.PI / 2, swingRotation.z, (progress - 0.5) * 2);
                 } else {
                     if (knifeVisual.parent) { // S'assure que l'objet est toujours attaché avant de le retirer
                         camera.remove(knifeVisual); // Supprime après l'animation
@@ -1132,19 +1160,45 @@
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // Définir le rayon depuis le centre de la vue de la caméra
             raycaster.far = knifeRange; // Limiter la portée pour l'attaque au couteau
 
-            const intersects = raycaster.intersectObjects(alexes.map(a => a.mesh), true); // Vérifie les alexes uniquement
+            const alexMeshes = alexes.map(a => a.mesh); // Collection de tous les meshes d'Alex
+            const intersects = raycaster.intersectObjects(alexMeshes, true); // Vérifie les alexes uniquement
+
+            console.log(`[KNIFE] Raycast intersects: ${intersects.length} results`, intersects); // LOG: Intersections du couteau
 
             if (intersects.length > 0) {
-                const hitObject = intersects[0].object;
-                const hitAlex = alexes.find(alex => alex.mesh === hitObject || alex.mesh.children.includes(hitObject)); // Vérifier si c'est le groupe ou un mesh enfant
+                 const hitAlexIntersection = intersects.find(intersect => {
+                    let obj = intersect.object;
+                    while (obj) {
+                        if (obj.userData && obj.userData.alexInstance) {
+                            return true; // Found an Alex instance
+                        }
+                        obj = obj.parent;
+                    }
+                    return false;
+                });
 
-                if (hitAlex) {
-                    console.log(`Knife hit Alex! Alex initial health: ${hitAlex.health}`); // Debug: initial health
-                    hitAlex.takeDamage(knifeDamage); // Le couteau fait plus de dégâts
-                    console.log(`Alex knife hit! New health: ${hitAlex.health}`); // Debug: new health
+                if (hitAlexIntersection) {
+                    let hitObject = hitAlexIntersection.object;
+                    let hitAlex = null;
+                    while (hitObject && !hitAlex) {
+                        if (hitObject.userData && hitObject.userData.alexInstance) {
+                            hitAlex = hitObject.userData.alexInstance;
+                        }
+                        hitObject = hitObject.parent;
+                    }
+
+                    if (hitAlex) {
+                        console.log(`[KNIFE] Knife hit Alex! Alex ID: ${hitAlex.mesh.uuid}, initial health: ${hitAlex.health}`); // Debug: initial health
+                        hitAlex.takeDamage(knifeDamage); // Le couteau fait plus de dégâts
+                        console.log(`[KNIFE] Alex knife hit! New health: ${hitAlex.health}`); // Debug: new health
+                    } else {
+                        console.log("[KNIFE] Found intersection but corresponding Alex object not found after traversal."); // LOG: Alex pas trouvé après intersection couteau
+                    }
+                } else {
+                    console.log("[KNIFE] Knife raycast hit non-Alex object or no valid Alex found after filter."); // Debug for unexpected hits
                 }
             } else {
-                console.log("Knife missed!"); // Debug: no hit
+                console.log("[KNIFE] Knife missed!"); // Debug: no hit
             }
 
             // Réactiver le couteau après le cooldown
@@ -1164,7 +1218,7 @@
             isReloading = true;
             ammoDisplay.classList.add('reloading');
             showMessage("Rechargement...", reloadDuration); // Garde le message de rechargement
-            console.log("Player started reloading!"); // Debug reload
+            console.log("[PLAYER] Player started reloading!"); // Debug reload
 
             const initialArmPos = armMesh.position.clone();
             const reloadArmPos = new THREE.Vector3(initialArmPos.x, initialArmPos.y - 0.3, initialArmPos.z); // Descend un peu l'arme
@@ -1210,7 +1264,7 @@
                     ammoDisplay.classList.remove('reloading');
                     updateAmmoDisplay();
                     showMessage("Rechargé !", 1000);
-                    console.log("Player finished reloading! Ammo: " + currentAmmo + " / " + totalReserveAmmo); // Debug reload finished
+                    console.log("[PLAYER] Player finished reloading! Ammo: " + currentAmmo + " / " + totalReserveAmmo); // Debug reload finished
                     return;
                 }
                 requestAnimationFrame(animateReload);
@@ -1235,6 +1289,7 @@
             healthBar.style.width = `${healthPercentage}%`;
             healthBar.textContent = `${Math.round(playerHealth)} HP`; // Afficher la valeur HP arrondie
             healthBar.style.backgroundColor = '#e53e3e'; // Forcer la couleur rouge
+            console.log(`[PLAYER] Player Health Updated: ${playerHealth} HP`); // LOG: Santé du joueur mise à jour
         }
 
         /**
@@ -1256,13 +1311,14 @@
                 this.maxHealth = health;
                 this.speed = speed;
                 this.damage = damage;
-                this.attackCooldown = 0; // Cooldown des attaques d'Alex
+                this.attackCooldown = ALEX_ATTACK_COOLDOWN; // Cooldown des attaques d'Alex
                 this.lastAttackTime = 0; // Horodatage de la dernière attaque
                 this.scene = scene;
                 this.player = player; // Référence au playerContainer
 
                 // Création du mesh d'Alex (personnage simple de type Minecraft)
                 this.mesh = new THREE.Group();
+                this.mesh.userData.alexInstance = this; // Store reference to this Alex instance
 
                 // Tête (vert foncé)
                 const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
@@ -1351,7 +1407,7 @@
                 const AlexIntersects = alexForwardRaycaster.intersectObjects(collidableObjects, true);
 
                 if (AlexIntersects.length > 0 && AlexIntersects[0].distance < ALEX_COLLISION_RADIUS + 0.2) { // If very close to collision (smaller buffer)
-                    console.log(`Alex ${this.mesh.uuid} detected obstacle! Turning.`); // Debug Alex obstacle avoidance
+                    console.log(`[ALEX ${this.mesh.uuid}] Detected obstacle! Turning.`); // Debug Alex obstacle avoidance
                     // Obstacle detected, try to turn
                     const turnAngle = (Math.random() > 0.5 ? 1 : -1) * Math.PI / 8; // Turn 22.5 degrees randomly
                     directionToPlayer.applyAxisAngle(new THREE.Vector3(0, 1, 0), turnAngle); // Apply turn to original direction
@@ -1370,13 +1426,8 @@
                 const angle = Math.atan2(directionToPlayer.x, directionToPlayer.z); // Use the (potentially modified) directionToPlayer
                 this.mesh.rotation.y = angle;
                 
-                // S'assurer qu'Alex reste sur le sol
-                // This line might be causing issues if `position.y` is not 1.0 initially.
-                // Let's rely on the constructor's initial placement.
-                // If collision with ground is needed, it should be handled by raycasting downwards and adjusting.
-                // For now, removing this to avoid conflicting with collision logic.
                 this.mesh.position.y = 1.0; // Ensure Alex stays at correct Y level
-                console.log(`Alex ${this.mesh.uuid} position: ${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)}`); // Debug Alex position
+                //console.log(`Alex ${this.mesh.uuid} position: ${this.mesh.position.x.toFixed(2)}, ${this.mesh.position.y.toFixed(2)}, ${this.mesh.position.z.toFixed(2)}`); // Debug Alex position
             }
 
             /**
@@ -1384,9 +1435,10 @@
              * @param {number} amount Le montant des dégâts à subir.
              */
             takeDamage(amount) {
+                console.log(`[ALEX ${this.mesh.uuid}] Taking ${amount} damage. Health before: ${this.health}`); // LOG: Santé d'Alex avant dégâts
                 this.health -= amount;
                 if (this.health < 0) this.health = 0; // Empêcher la santé négative
-                console.log(`Alex ${this.mesh.uuid} took ${amount} damage. Health: ${this.health}`); // Debug damage taken
+                console.log(`[ALEX ${this.mesh.uuid}] Health after: ${this.health}`); // LOG: Santé d'Alex après dégâts
                 
                 // Feedback visuel de dégâts (ex: clignotement rouge)
                 this.mesh.traverse((object) => {
@@ -1440,25 +1492,20 @@
              */
             attackPlayer() {
                 const currentTime = performance.now();
-                if (currentTime - this.lastAttackTime > ALEX_ATTACK_COOLDOWN) {
+                console.log(`[ALEX ${this.mesh.uuid}] Attempting attack. Current Time: ${currentTime.toFixed(0)}, Last Attack Time: ${this.lastAttackTime.toFixed(0)}, Cooldown: ${this.attackCooldown}, Player Damage Cooldown: ${playerDamageCooldown.toFixed(0)}`);
+                if (currentTime - this.lastAttackTime >= this.attackCooldown) { // Changed > to >= for precision
                     // Vérifier le cooldown de dégâts du joueur
                     if (playerDamageCooldown <= 0) {
                         playerHealth -= this.damage;
                         updateHealthDisplay();
                         playerDamageCooldown = playerDamageCooldownDuration; // Réinitialiser le cooldown
-                        console.log(`Alex attacked player! Player health: ${playerHealth}`); // Debug attack
+                        console.log(`[ALEX ${this.mesh.uuid}] Alex attacked player! Player health: ${playerHealth}`); // Debug attack
+                    } else {
+                        console.log(`[ALEX ${this.mesh.uuid}] Player is currently invincible. Player damage cooldown: ${playerDamageCooldown.toFixed(0)}ms remaining.`);
                     }
                     this.lastAttackTime = currentTime;
-
-                    // Feedback visuel pour le joueur (écran rouge rapide)
-                    document.body.style.filter = 'brightness(0.5) sepia(1) hue-rotate(-50deg)'; // Effet rouge/sombre
-                    setTimeout(() => {
-                        document.body.style.filter = 'none'; // Revenir à la normale
-                    }, 200);
-
-                    if (playerHealth <= 0) {
-                        endGame();
-                    }
+                } else {
+                    console.log(`[ALEX ${this.mesh.uuid}] Attack on cooldown. Time remaining: ${(this.attackCooldown - (currentTime - this.lastAttackTime)).toFixed(0)}ms`);
                 }
             }
 
@@ -1466,7 +1513,7 @@
              * Gère la mort d'Alex.
              */
             die() {
-                console.log(`Alex ${this.mesh.uuid} died!`); // Debug Alex death
+                console.log(`[ALEX ${this.mesh.uuid}] Alex died!`); // Debug Alex death
                 this.scene.remove(this.mesh);
                 // Libérer également les ressources du sprite pour économiser la mémoire
                 if (this.healthSprite) {
@@ -1513,7 +1560,7 @@
             isKnifeReady = true;
             canJump = true;
             playerVerticalVelocity = 0;
-            playerDamageCooldown = 0;
+            playerDamageCooldown = 0; // Ensure cooldown is reset
 
             // Réinitialisation des manches
             currentWave = 0;
@@ -1892,6 +1939,10 @@
             const currentTime = performance.now();
             const deltaTime = (currentTime - lastFrameTime) / 1000; // Delta time en secondes
             lastFrameTime = currentTime;
+            
+            // Console log pour le deltaTime et le cooldown du joueur
+            // console.log(`DeltaTime: ${deltaTime.toFixed(3)}s, Player Damage Cooldown: ${playerDamageCooldown.toFixed(0)}ms`);
+
 
             if (gameActive) {
                 // Réinitialiser la vélocité
@@ -1948,7 +1999,7 @@
                         // Collision, ajuster le mouvement au point de collision
                         // Déplacer jusqu'au point de collision moins un petit tampon
                         nextPosition.add(moveVectorZ.clone().normalize().multiplyScalar(intersects[0].distance - playerCollisionRadius - 0.01));
-                        console.log("Player collision detected on Z axis!"); // Debug player collision
+                        console.log("[PLAYER] Player collision detected on Z axis!"); // Debug player collision
                     }
                 }
 
@@ -1965,7 +2016,7 @@
                         nextPosition.add(moveVectorX);
                     } else {
                         nextPosition.add(moveVectorX.clone().normalize().multiplyScalar(intersects[0].distance - playerCollisionRadius - 0.01));
-                        console.log("Player collision detected on X axis!"); // Debug player collision
+                        console.log("[PLAYER] Player collision detected on X axis!"); // Debug player collision
                     }
                 }
                 
@@ -1989,7 +2040,7 @@
                         }
                         // Repousser le joueur le long du vecteur normalisé d'Alex vers le joueur de la quantité de chevauchement
                         nextPosition.add(distanceVector.multiplyScalar(overlap));
-                        console.log(`Player pushed by Alex ${alex.mesh.uuid}!`); // Debug player push
+                        console.log(`[PLAYER] Player pushed by Alex ${alex.mesh.uuid}!`); // Debug player push
                     }
                 });
 
@@ -2017,6 +2068,7 @@
                 if (playerDamageCooldown > 0) {
                     playerDamageCooldown -= deltaTime * 1000; // Réduire en millisecondes par seconde
                     if (playerDamageCooldown < 0) playerDamageCooldown = 0;
+                    console.log(`[PLAYER] Player damage cooldown: ${playerDamageCooldown.toFixed(0)}ms`); // LOG: Cooldown du joueur
                 }
             }
 
@@ -2175,17 +2227,10 @@
                     // Sinon, c'est une erreur inattendue et on retourne au menu principal
                     if (e.name === "SecurityError" || (e.message && e.message.includes("UserGesture"))) { // "SecurityError" ou message si user annule
                         showMessage('Verrouillage de la souris annulé. Retour au menu précédent.', 3000);
-                        // Ne pas changer le currentUIMode ici. Il sera géré par pointerlockchange.
-                        // Cependant, nous devons assurer que l'UI est visible si le verrouillage échoue.
-                        // Si le mode était "game" et qu'il est libéré, il passera par pointerlockchange et montrera showPauseMenu
-                        // Si le mode était "pauseMenu" et qu'il est libéré, il restera en pause.
-                        // Si la demande de verrouillage échoue depuis "mainMenu", nous devrons y retourner.
-                        if (currentUIMode === 'mainMenu') {
-                            showMenuScreen();
-                        } else if (currentUIMode === 'pauseMenu') {
-                             showPauseMenu(); // Revenir au menu de pause
+                        // Conserver le mode UI précédent pour retourner au bon menu
+                        if (previousUIMode === 'pauseMenu') {
+                            showPauseMenu();
                         } else {
-                            // Cas imprévu, peut-être retourner au menu principal par défaut
                             showMenuScreen();
                         }
                     } else {
