@@ -653,7 +653,8 @@
         let playerHealth = 100;
         const maxPlayerHealth = 100;
         let playerDamageCooldown = 0; // Temps avant de pouvoir subir à nouveau des dégâts
-        const playerDamageCooldownDuration = 1000; // 1 seconde d'invincibilité après un coup
+        // MODIFICATION: Réduction du temps d'invincibilité pour le test
+        const playerDamageCooldownDuration = 200; // 0.2 seconde d'invincibilité après un coup
 
         let currentAmmo = 30;
         const magazineCapacity = 30;
@@ -667,10 +668,18 @@
 
         let knifeCooldown = 1000; // 1 seconde de cooldown pour le couteau
         let isKnifeReady = true;
-        const knifeRange = 2; // Portée du coup de couteau
+        // MODIFICATION: Ajustement de la portée du couteau pour le test
+        const knifeRange = 2.5; // Portée du coup de couteau (légèrement augmentée)
         const knifeDamage = 20; // Dégâts du couteau
         const knifeAttackDuration = 200; // Durée de l'effet visuel du couteau
         let knifeVisual; // Référence au mesh visuel du couteau
+
+        // Global variable for shooting range
+        const SHOOT_RANGE = 100; // Portée de tir du joueur (large pour les tests)
+
+        // Debug ray visualization
+        let debugRayLine;
+
 
         // Gestion des vagues
         let currentWave = 0;
@@ -686,6 +695,9 @@
         const ALEX_BASE_DAMAGE = 10;
         const ALEX_ATTACK_COOLDOWN = 1500; // Cooldown des attaques des Alex
         const ALEX_COLLISION_RADIUS = 0.5; // Rayon de collision des Alex avec le joueur
+        // MODIFICATION: Portée d'attaque des Alex (légèrement augmentée)
+        const ALEX_ATTACK_RANGE_THRESHOLD = playerCollisionRadius + ALEX_COLLISION_RADIUS + 0.5;
+
 
         // État de l'interface utilisateur
         let currentUIMode = 'mainMenu'; // 'mainMenu', 'game', 'pauseMenu', 'settings', 'quitConfirm', 'gameOver'
@@ -958,7 +970,9 @@
 
                 // Ajuster légèrement la rotation du bras/arme avec le mouvement vertical de la caméra
                 if (armMesh) {
-                    armMesh.rotation.x = -Math.PI / 6 + (camera.rotation.x * 0.2); // Maintient l'inclinaison relative
+                    armMesh.position.z = -1.0 + Math.sin(newPitch * 0.5) * 0.2; // slight z movement with pitch
+                    armMesh.position.y = -0.7 - Math.abs(Math.sin(newPitch * 0.5)) * 0.1; // slight y movement with pitch
+                    armMesh.rotation.x = -Math.PI / 6 + (newPitch * 0.2); // Maintient l'inclinaison relative
                 }
             }
         }
@@ -1034,6 +1048,27 @@
 
             // Définir le point d'origine du rayon (position de la caméra) et la direction (direction de la caméra)
             raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+            raycaster.far = SHOOT_RANGE; // Explicitly set far distance
+
+            // Show debug ray
+            if (debugRayLine) {
+                // Positionner la ligne de débogage pour correspondre au raycast
+                const rayDirection = new THREE.Vector3();
+                camera.getWorldDirection(rayDirection); // Get camera's global forward direction
+                
+                // Mettre à jour les points de la ligne dans le système de coordonnées de la caméra
+                debugRayLine.geometry.attributes.position.array[0] = 0;
+                debugRayLine.geometry.attributes.position.array[1] = 0;
+                debugRayLine.geometry.attributes.position.array[2] = 0; // Start at camera's local origin
+
+                debugRayLine.geometry.attributes.position.array[3] = rayDirection.x * SHOOT_RANGE;
+                debugRayLine.geometry.attributes.position.array[4] = rayDirection.y * SHOOT_RANGE;
+                debugRayLine.geometry.attributes.position.array[5] = rayDirection.z * SHOOT_RANGE; // End point in camera space scaled by range
+                debugRayLine.geometry.attributes.position.needsUpdate = true;
+                debugRayLine.visible = true;
+                setTimeout(() => { debugRayLine.visible = false; }, 100); // Hide after a short delay
+            }
+
 
             // Obtenir les intersections avec les ennemis (Alexes)
             // On veut intercepter le mesh principal de l'Alex, pas juste ses enfants.
@@ -1159,6 +1194,25 @@
             // Utiliser le raycaster global et le définir à partir de la caméra pour la cohérence
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // Définir le rayon depuis le centre de la vue de la caméra
             raycaster.far = knifeRange; // Limiter la portée pour l'attaque au couteau
+
+            // Show debug ray (for knife)
+            if (debugRayLine) {
+                // Positionner la ligne de débogage pour correspondre au raycast
+                const rayDirection = new THREE.Vector3();
+                camera.getWorldDirection(rayDirection); // Get camera's global forward direction
+                
+                debugRayLine.geometry.attributes.position.array[0] = 0;
+                debugRayLine.geometry.attributes.position.array[1] = 0;
+                debugRayLine.geometry.attributes.position.array[2] = 0; // Start at camera's local origin
+
+                debugRayLine.geometry.attributes.position.array[3] = rayDirection.x * knifeRange;
+                debugRayLine.geometry.attributes.position.array[4] = rayDirection.y * knifeRange;
+                debugRayLine.geometry.attributes.position.array[5] = rayDirection.z * knifeRange; // End point in camera space scaled by range
+                debugRayLine.geometry.attributes.position.needsUpdate = true;
+                debugRayLine.visible = true;
+                setTimeout(() => { debugRayLine.visible = false; }, 100); // Hide after a short delay
+            }
+
 
             const alexMeshes = alexes.map(a => a.mesh); // Collection de tous les meshes d'Alex
             const intersects = raycaster.intersectObjects(alexMeshes, true); // Vérifie les alexes uniquement
@@ -1415,12 +1469,16 @@
                 }
                 
                 // Appliquer le mouvement pondéré par deltaTime
-                if (currentDistanceToPlayer > playerCollisionRadius + ALEX_COLLISION_RADIUS + 0.1) { // Laisser un petit espace entre joueur et Alex
+                // MODIFICATION: Alex bouge toujours tant qu'il n'est pas à portée d'attaque, ou si le joueur n'est pas à portée de collision
+                if (currentDistanceToPlayer > ALEX_ATTACK_RANGE_THRESHOLD || currentDistanceToPlayer > playerCollisionRadius + ALEX_COLLISION_RADIUS + 0.1) { 
                     this.mesh.position.add(desiredMovementVector);
-                } else {
-                    // Alex est proche du joueur, attaque
+                }
+                
+                // Si Alex est à portée d'attaque, alors il attaque
+                if (currentDistanceToPlayer <= ALEX_ATTACK_RANGE_THRESHOLD) {
                     this.attackPlayer();
                 }
+
 
                 // Faire pivoter Alex pour regarder le joueur (seulement sur l'axe Y)
                 const angle = Math.atan2(directionToPlayer.x, directionToPlayer.z); // Use the (potentially modified) directionToPlayer
@@ -1955,7 +2013,7 @@
                 forwardDir.normalize();
 
                 const rightDir = new THREE.Vector3();
-                // Utilisation du vecteur 'right' de la caméra pour le strafe correct
+                // Utilisation du vecteur 'right' de la camera pour le strafe correct
                 rightDir.setFromMatrixColumn(camera.matrixWorld, 0);
                 rightDir.y = 0; // Garder le strafe horizontal
                 rightDir.normalize();
@@ -2445,6 +2503,15 @@
             weaponBarrelMesh.rotation.x = Math.PI / 2; // Pointe en avant
             weaponMesh.add(weaponBarrelMesh); // Canon enfant du corps de l'arme
 
+            // Setup debug ray visual
+            const rayMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 }); // Red line
+            const rayPoints = [];
+            rayPoints.push(new THREE.Vector3(0, 0, 0));
+            rayPoints.push(new THREE.Vector3(0, 0, -1)); // Placeholder, will be updated
+            const rayGeometry = new THREE.BufferGeometry().setFromPoints(rayPoints);
+            debugRayLine = new THREE.Line(rayGeometry, rayMaterial);
+            camera.add(debugRayLine); // Add to camera to move with it
+            debugRayLine.visible = false; // Hidden by default
 
             // --- Gestion des événements ---
             // Gestion du redimensionnement de la fenêtre
