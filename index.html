@@ -630,6 +630,7 @@
 
         // Référence globale au sol
         let ground; // Déclarer ground globalement
+        let spawnAreaRadius; // Déclarer spawnAreaRadius globalement
 
         // Éléments de l'interface utilisateur
         let mainMenuDiv, gameContainer, infoBox, settingsSection;
@@ -925,7 +926,7 @@
             // Remet les keyBindings aux valeurs AZERTY par default (codes QWERTY)
             Object.assign(keyBindings, defaultKeyBindings);
             updateKeyRemapButtons(); // Met à jour l'affichage des boutons
-            showMessage("Touches réinitialisées aux valeurs par défaut.", 2000);
+            showMessage("Touches réinitialisées aux valeurs par default.", 2000);
         }
 
         /**
@@ -1771,6 +1772,9 @@
                 new THREE.Vector3(-20, 0, -20) // Autre zone
             ];
 
+            // Définir spawnAreaRadius ici, avant son utilisation
+            spawnAreaRadius = 40; // Rayon de la zone de spawn autour du centre de la carte
+
             for (let i = 0; i < numAlexThisWave; i++) {
                 // Ajuster les propriétés des Alex en fonction de la manche
                 const alexHealth = Math.round(ALEX_BASE_HEALTH * (1 + (currentWave * 0.1))); // Plus de vie par manche, arrondi
@@ -2171,9 +2175,17 @@
                     // Sinon, c'est une erreur inattendue et on retourne au menu principal
                     if (e.name === "SecurityError" || (e.message && e.message.includes("UserGesture"))) { // "SecurityError" ou message si user annule
                         showMessage('Verrouillage de la souris annulé. Retour au menu précédent.', 3000);
-                        if (previousUIMode === 'pauseMenu') { // Si venait du menu pause
-                            showPauseMenu();
-                        } else { // Si venait du menu principal
+                        // Ne pas changer le currentUIMode ici. Il sera géré par pointerlockchange.
+                        // Cependant, nous devons assurer que l'UI est visible si le verrouillage échoue.
+                        // Si le mode était "game" et qu'il est libéré, il passera par pointerlockchange et montrera showPauseMenu
+                        // Si le mode était "pauseMenu" et qu'il est libéré, il restera en pause.
+                        // Si la demande de verrouillage échoue depuis "mainMenu", nous devrons y retourner.
+                        if (currentUIMode === 'mainMenu') {
+                            showMenuScreen();
+                        } else if (currentUIMode === 'pauseMenu') {
+                             showPauseMenu(); // Revenir au menu de pause
+                        } else {
+                            // Cas imprévu, peut-être retourner au menu principal par défaut
                             showMenuScreen();
                         }
                     } else {
