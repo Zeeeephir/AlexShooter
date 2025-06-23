@@ -8,14 +8,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- Chargement de la police Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome pour l'icône de paramètres -->
+    <!-- Font Awesome pour l'icône de paramètres et autres icônes si besoin -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         /* Styles réinitialisés pour éviter les conflits */
         body, html {
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: hidden; /* Cache les barres de défilement */
             font-family: 'Inter', sans-serif;
             background-color: #1a202c; /* Couleur de fond sombre */
             color: #e2e8f0; /* Couleur de texte claire */
@@ -192,6 +192,7 @@
             font-weight: bold;
             display: none;
             z-index: 99;
+            white-space: nowrap; /* Empêche le retour à la ligne pour les messages courts */
         }
         #crosshair {
             position: absolute;
@@ -273,6 +274,7 @@
             -webkit-appearance: none;
             height: 8px;
             border-radius: 4px;
+            outline: none; /* Supprime le contour bleu sur le focus */
         }
         #settings-section input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -291,12 +293,14 @@
             background-color: rgba(255, 255, 255, 0.05);
             padding: 10px;
             border-radius: 8px;
+            width: 80%; /* Pour centrer le contenu */
+            max-width: 350px;
         }
         .key-remap-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 80%;
+            width: 100%;
             margin: 8px auto;
             padding: 5px 10px;
             background-color: rgba(255, 255, 255, 0.08);
@@ -437,9 +441,8 @@
         }
         #health-bar {
             height: 100%;
-            width: 100%; /* Initialement pleine */
-            background-color: #e53e3e; /* Rouge pour la vie */
-            transition: width 0.2s ease-out;
+            background-color: #e53e3e; /* Toujours rouge */
+            transition: width 0.2s ease-out; /* Conserver la transition pour la largeur */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -503,35 +506,32 @@
 </head>
 <body class="bg-gray-900 text-gray-200">
     <div id="game-container" class="relative w-screen h-screen overflow-hidden">
+        <!-- Info box displayed on initial game screen before pointer lock -->
         <div id="info-box" class="rounded-xl">
             <h1 class="text-2xl font-bold mb-2">Bienvenue dans AlexShooter !</h1>
             <p>Cliquez n'importe où pour commencer le jeu et bloquer votre souris.</p>
             <p id="controls-info">Contrôles par défaut (AZERTY) : Z pour Avancer, Q pour Strafe Gauche, S pour Reculer, D pour Strafe Droite. Clic gauche pour Tirer, Clic droit pour Viser. Espace pour sauter, C pour coup de couteau, R pour recharger.</p>
         </div>
-        <div id="message-box" class="hidden"></div>
+        <!-- Message box for temporary in-game messages (e.g., "Reloading...") -->
+        <div id="message-box"></div>
+        <!-- Crosshair in the center of the screen -->
         <div id="crosshair"></div>
 
-        <!-- HUD ELEMENTS -->
-        <div id="ammo-display" style="display: none;">30 / 90</div>
-        <div id="health-display" style="display: none;">
-            <div id="health-bar">100%</div>
+        <!-- HUD ELEMENTS (hidden by default, shown when game is active) -->
+        <div id="ammo-display">30 / 90</div>
+        <div id="health-display">
+            <div id="health-bar">100 HP</div> <!-- Changed to display HP -->
         </div>
-        <div id="wave-info" style="display: none;">
+        <div id="wave-info">
             <p>Manche: <span id="current-wave-display">1</span></p>
             <p>Alex Restants: <span id="alexes-remaining-display">0</span></p>
         </div>
 
-
-        <!-- Le bouton paramètres en jeu est toujours là, mais caché quand les paramètres sont dans le menu principal -->
-        <button id="settings-button" class="rounded-lg" style="display: none;">
-            <i class="fas fa-cog"></i> Paramètres
-        </button>
-
-        <!-- Pas de modal settings-modal indépendant ici -->
-        <!-- Le canvas sera ajouté ici par Three.js -->
+        <!-- No in-game settings button needed as settings are handled via pause menu -->
+        <!-- The Three.js canvas will be appended here by JavaScript -->
     </div>
 
-    <!-- Nouveau menu principal -->
+    <!-- Main Menu Screen -->
     <div id="main-menu">
         <h1 id="main-menu-title">AlexShooter</h1>
         <div id="menu-buttons-container" class="menu-buttons-wrapper">
@@ -539,7 +539,7 @@
             <button id="main-menu-settings-button" class="menu-button">Paramètres</button>
         </div>
 
-        <!-- Section des paramètres intégrée au menu principal -->
+        <!-- Settings Section (integrated into main menu, shown/hidden by JS) -->
         <div id="settings-section">
             <h2>Paramètres du Jeu</h2>
             <label for="sensitivity-slider">Sensibilité de la souris:</label>
@@ -560,7 +560,7 @@
                 <div class="key-remap-row">
                     <span>Strafe Droite:</span> <button id="remap-strafeRight" class="key-remap-button">D</button>
                 </div>
-                 <div class="key-remap-row">
+                <div class="key-remap-row">
                     <span>Sauter:</span> <button id="remap-jump" class="key-remap-button">Espace</button>
                 </div>
                 <div class="key-remap-row">
@@ -583,16 +583,16 @@
         </div>
     </div>
 
-    <!-- Menu de Pause -->
-    <div id="pause-menu" style="display: none;">
+    <!-- Pause Menu -->
+    <div id="pause-menu">
         <h2>PAUSE</h2>
         <button id="resume-button" class="menu-button">Reprendre</button>
         <button id="pause-settings-button" class="menu-button">Paramètres</button>
         <button id="quit-to-main-button" class="menu-button">Retour au Menu Principal</button>
     </div>
 
-    <!-- Modal de confirmation pour quitter -->
-    <div id="quit-confirm-modal" style="display: none;">
+    <!-- Quit Confirmation Modal -->
+    <div id="quit-confirm-modal">
         <div id="quit-confirm-content">
             <p>Êtes-vous sûr de vouloir quitter ? Toute progression non sauvegardée sera perdue.</p>
             <div class="button-group">
@@ -603,7 +603,7 @@
     </div>
 
     <!-- Game Over Screen -->
-    <div id="game-over-screen" style="display: none;">
+    <div id="game-over-screen">
         <h2>GAME OVER</h2>
         <p>Alexes tués : <span id="final-alex-kills">0</span></p>
         <p>Manches survécues : <span id="final-waves-survived">0</span></p>
@@ -611,16 +611,16 @@
     </div>
 
     <script>
-        // --- Variables Globales Three.js ---
+        // --- Three.js Global Variables ---
         let scene, camera, renderer;
         let playerContainer; // Conteneur pour la caméra et le joueur pour la rotation horizontale
-        let playerVelocity = new THREE.Vector3(); // Vitesse du joueur
+        let playerVelocity = new THREE.Vector3(); // Vitesse de déplacement du joueur
         const moveSpeed = 0.1; // Vitesse de déplacement du joueur
         let rotationSpeed = 0.002; // Vitesse de rotation de la caméra (maintenant modifiable)
         let keyboard = {}; // État des touches du clavier (pressée/relâchée)
         let isAiming = false; // État du clic droit (viser)
         let alexes = []; // Tableau pour stocker les Alex (ennemis)
-        let collidableObjects = []; // Nouveau tableau pour les objets avec lesquels le joueur peut entrer en collision (bâtiments)
+        let collidableObjects = []; // Tableau pour les objets avec lesquels le joueur peut entrer en collision (bâtiments)
         let raycaster = new THREE.Raycaster(); // Pour la détection de tir
         let messageBox; // Référence à la boîte de message UI
         let gameActive = false; // Pour savoir si le jeu est actif (après clic initial)
@@ -664,7 +664,7 @@
         let knifeCooldown = 1000; // 1 seconde de cooldown pour le couteau
         let isKnifeReady = true;
         const knifeRange = 2; // Portée du coup de couteau
-        const knifeDamage = 1; // Dégâts du couteau
+        const knifeDamage = 20; // Dégâts du couteau
         const knifeAttackDuration = 200; // Durée de l'effet visuel du couteau
         let knifeVisual; // Référence au mesh visuel du couteau
 
@@ -678,13 +678,14 @@
 
         // Alex (Enemy) Properties
         const ALEX_BASE_SPEED = 0.03;
-        const ALEX_BASE_HEALTH = 1;
+        const ALEX_BASE_HEALTH = 100; // Santé de base des Alex
         const ALEX_BASE_DAMAGE = 10;
-        const ALEX_ATTACK_COOLDOWN = 1500; // Cooldown for Alex's attack
+        const ALEX_ATTACK_COOLDOWN = 1500; // Cooldown des attaques des Alex
+        const ALEX_COLLISION_RADIUS = 0.5; // Rayon de collision des Alex avec le joueur
 
         // UI State
-        let currentUIMode = 'mainMenu'; // 'mainMenu', 'game', 'pauseMenu', 'settings', 'quitConfirm', 'remapping', 'gameOver'
-        let previousUIMode = 'mainMenu'; // Used for 'Escape' key to return to previous screen
+        let currentUIMode = 'mainMenu'; // 'mainMenu', 'game', 'pauseMenu', 'settings', 'quitConfirm', 'gameOver'
+        let previousUIMode = 'mainMenu'; // Utilisé pour la touche 'Échap' pour retourner à l'écran précédent
         let isPointerLockRequested = false; // Empêche les requêtes de verrouillage multiples
 
         // Variables de remappage des touches. Ces codes sont les 'event.code' des touches.
@@ -694,7 +695,7 @@
             'moveForward': 'KeyW', // Correspond à la touche physique 'Z' sur un clavier AZERTY
             'moveBackward': 'KeyS', // Correspond à la touche physique 'S'
             'strafeLeft': 'KeyA',   // Correspond à la touche physique 'Q' sur un clavier AZERTY
-            'strafeRight': 'KeyD',   // Correspond à la touche physique 'D'
+            'strafeRight': 'KeyD',  // Correspond à la touche physique 'D'
             'jump': 'Space',
             'knife': 'KeyC',
             'reload': 'KeyR'
@@ -717,9 +718,14 @@
         const NUM_SHOOTING_EFFECTS = 5; // Nombre d'effets de tir simultanés
         let shootingEffectElements = []; // Tableau pour stocker les éléments d'effet de tir
 
+        let lastFrameTime = performance.now(); // Pour le calcul du deltaTime
+
         // --- Fonctions d'aide globales (définies avant init() pour la portée) ---
 
-        // Fonction pour gérer les événements keydown du jeu (déplacements, Échap)
+        /**
+         * Gère les événements keydown du jeu (déplacements, Échap).
+         * @param {KeyboardEvent} event L'événement clavier.
+         */
         function handleGameKeydown(event) {
             keyboard[event.code] = true;
 
@@ -734,7 +740,7 @@
                     document.exitPointerLock(); // Relâche le pointeur
                 } else if (currentUIMode === 'pauseMenu') { // Si en pause, reprendre le jeu
                     hidePauseMenu();
-                    requestGamePointerLock(); // Tenter de re-verrouiller le pointeur
+                    requestGamePointerLock(true); // Tenter de re-verrouiller le pointeur et force le mode game
                 } else if (currentUIMode === 'settings') { // Si dans les paramètres
                     // Dépend d'où on vient pour les paramètres (menu principal ou menu pause)
                     if (previousUIMode === 'pauseMenu') {
@@ -760,12 +766,19 @@
             }
         }
 
-        // Fonction pour gérer les événements keyup du jeu
+        /**
+         * Gère les événements keyup du jeu.
+         * @param {KeyboardEvent} event L'événement clavier.
+         */
         function handleGameKeyup(event) {
             keyboard[event.code] = false;
         }
 
-        // Helper pour formater les codes de touche pour l'affichage (ex: 'KeyW' devient 'Z' pour AZERTY)
+        /**
+         * Aide pour formater les codes de touche pour l'affichage (ex: 'KeyW' devient 'Z' pour AZERTY).
+         * @param {string} code Le code de l'événement clavier (ex: 'KeyW', 'Space').
+         * @returns {string} La chaîne de caractères formatée pour l'affichage.
+         */
         function formatKeyCode(code) {
             if (!code) return ""; // Gère les cas nuls/indéfinis
             // Ces mappings sont spécifiques pour AZERTY afin que l'affichage corresponde à la touche physique
@@ -799,7 +812,11 @@
             }
         }
 
-        // Helper pour formater les noms d'action pour les messages
+        /**
+         * Aide pour formater les noms d'action pour les messages.
+         * @param {string} action Le nom interne de l'action (ex: 'moveForward').
+         * @returns {string} Le nom de l'action convivial.
+         */
         function formatActionName(action) {
             switch(action) {
                 case 'moveForward': return 'Avancer';
@@ -813,7 +830,9 @@
             }
         }
 
-        // Fonction pour mettre à jour le texte des boutons de remappage de touches
+        /**
+         * Met à jour le texte des boutons de remappage de touches.
+         */
         function updateKeyRemapButtons() {
             document.getElementById('remap-moveForward').textContent = formatKeyCode(keyBindings.moveForward);
             document.getElementById('remap-moveBackward').textContent = formatKeyCode(keyBindings.moveBackward);
@@ -824,7 +843,11 @@
             document.getElementById('remap-reload').textContent = formatKeyCode(keyBindings.reload);
         }
 
-        // Fonction pour démarrer le processus de remappage d'une touche
+        /**
+         * Démarre le processus de remappage d'une touche.
+         * @param {string} action L'action à remapper (ex: 'moveForward').
+         * @param {HTMLButtonElement} buttonElement L'élément bouton HTML associé à l'action.
+         */
         function startRemap(action, buttonElement) {
             if (isRemappingKey) return; // Empêche le remappage de plusieurs touches à la fois
 
@@ -843,7 +866,10 @@
             document.addEventListener('keydown', handleRemapKeydown, { once: true });
         }
 
-        // Gestionnaire pour l'événement keydown de remappage
+        /**
+         * Gestionnaire pour l'événement keydown de remappage.
+         * @param {KeyboardEvent} event L'événement clavier.
+         */
         function handleRemapKeydown(event) {
             event.preventDefault(); // Empêche l'action par default du navigateur pour la touche
 
@@ -856,7 +882,11 @@
             endRemap(currentRemapAction, newKey);
         }
 
-        // Fonction pour terminer le processus de remappage d'une touche
+        /**
+         * Termine le processus de remappage d'une touche.
+         * @param {string} action L'action qui était remappée.
+         * @param {string|null} newKey Le nouveau code de touche, ou null si le remappage a été annulé.
+         */
         function endRemap(action, newKey) {
             if (newKey) {
                 keyBindings[action] = newKey;
@@ -881,37 +911,38 @@
             document.addEventListener('keyup', handleGameKeyup);
         }
 
-        // Fonction pour réinitialiser les touches aux valeurs par default
+        /**
+         * Réinitialise les touches aux valeurs par défaut.
+         */
         function resetKeysToDefault() {
-            // Remet les keyBindings aux valeurs AZERTY par default (codes QWERTY)
-            keyBindings.moveForward = defaultKeyBindings.moveForward;
-            keyBindings.moveBackward = defaultKeyBindings.moveBackward;
-            keyBindings.strafeLeft = defaultKeyBindings.strafeLeft;
-            keyBindings.strafeRight = defaultKeyBindings.strafeRight;
-            keyBindings.jump = defaultKeyBindings.jump;
-            keyBindings.knife = defaultKeyBindings.knife;
-            keyBindings.reload = defaultKeyBindings.reload;
+            // Remet les keyBindings aux valeurs AZERTY par défaut (codes QWERTY)
+            Object.assign(keyBindings, defaultKeyBindings);
             updateKeyRemapButtons(); // Met à jour l'affichage des boutons
-            showMessage("Touches réinitialisées aux valeurs par default.", 2000);
+            showMessage("Touches réinitialisées aux valeurs par défaut.", 2000);
         }
 
-        // Fonction de gestion du redimensionnement de la fenêtre
+        /**
+         * Gère les événements de redimensionnement de la fenêtre, mettant à jour le rapport d'aspect de la caméra et la taille du rendu.
+         */
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // Fonction de gestion du mouvement de la souris (rotation de la caméra)
+        /**
+         * Gère le mouvement de la souris, faisant pivoter la caméra (vue du joueur).
+         * @param {MouseEvent} event L'événement souris.
+         */
         function onMouseMove(event) {
             if (gameActive) {
                 const deltaX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
                 const deltaY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
 
-                // Appliquer le mouvement horizontal (yaw) au conteneur du joueur
+                // Appliquer le mouvement horizontal (lacet) au conteneur du joueur
                 playerContainer.rotation.y -= deltaX * rotationSpeed;
 
-                // Appliquer le mouvement vertical (pitch) à la caméra elle-même
+                // Appliquer le mouvement vertical (tangage) à la caméra elle-même
                 let newPitch = camera.rotation.x - deltaY * rotationSpeed;
                 // On limite la rotation pour éviter de regarder trop haut/bas et de voir sous le joueur
                 newPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, newPitch)); // Limite entre -90 et 90 degrés
@@ -924,7 +955,10 @@
             }
         }
 
-        // Fonction de gestion du clic de souris
+        /**
+         * Gère les événements de clic de souris (tir, visée).
+         * @param {MouseEvent} event L'événement souris.
+         */
         function onMouseDown(event) {
             if (!gameActive) return;
 
@@ -933,7 +967,6 @@
             } else if (event.button === 2) { // Clic droit (Viser)
                 isAiming = true;
                 document.body.classList.add('aiming'); // Ajoute une classe pour le viseur
-                // showMessage("Visée activée !", 1000); // Message retiré
                 // Animer l'arme vers une position de visée
                 if (armMesh) {
                     // Position de visée: plus centré, légèrement relevé
@@ -943,7 +976,10 @@
             }
         }
 
-        // Fonction de gestion du relâchement du clic de souris
+        /**
+         * Gère le relâchement du clic de souris.
+         * @param {MouseEvent} event L'événement souris.
+         */
         function onMouseUp(event) {
             if (!gameActive) return;
 
@@ -959,9 +995,12 @@
             }
         }
 
-        // Fonction pour afficher un message temporaire
+        /**
+         * Affiche un message temporaire dans l'interface utilisateur.
+         * @param {string} text Le message à afficher.
+         * @param {number} duration La durée en millisecondes pendant laquelle le message doit être visible.
+         */
         function showMessage(text, duration = 2000) {
-            // console.log("Message:", text); // Pour le débogage
             messageBox.textContent = text;
             messageBox.style.display = 'block';
             setTimeout(() => {
@@ -969,9 +1008,11 @@
             }, duration);
         }
 
-        // Fonction de tir (Clic gauche)
+        /**
+         * Gère l'action de tir du joueur.
+         */
         function shoot() {
-            if (!gameActive || isReloading) { // Impossible de tirer en rechargeant
+            if (!gameActive || isReloading) { // Impossible de tirer en rechargeant ou si le jeu est en pause
                 return;
             }
             if (currentAmmo <= 0) { // Plus de balles
@@ -981,7 +1022,6 @@
 
             currentAmmo--;
             updateAmmoDisplay();
-            // showMessage("Tir !", 500); // Message retiré
 
             // Définir le point d'origine du rayon (position de la caméra) et la direction (direction de la caméra)
             raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
@@ -990,37 +1030,37 @@
             const intersects = raycaster.intersectObjects(alexes.map(a => a.mesh), true); // Intersects alexes' meshes only
 
             if (intersects.length > 0) {
-                console.log("Hit! Intersects:", intersects); // Debugging hit
                 const hitObject = intersects[0].object;
                 // Trouver l'instance d'Alex à partir du mesh touché
-                const hitAlex = alexes.find(alex => alex.mesh === hitObject || alex.mesh.children.includes(hitObject)); // Check if it's the group or a child mesh
+                const hitAlex = alexes.find(alex => alex.mesh === hitObject || alex.mesh.children.includes(hitObject)); // Vérifier si c'est le groupe ou un mesh enfant
 
-                if (hitAlex) { // Double-check it's an actual Alex
-                    hitAlex.takeDamage(10); // Each shot does 10 damage for now
-                } else {
-                    console.log("Raycast hit something, but it's not a tracked Alex:", hitObject.uuid);
+                if (hitAlex) { // Double-vérifier que c'est bien un Alex
+                    console.log(`Hit Alex! Alex initial health: ${hitAlex.health}`); // Debug: initial health
+                    hitAlex.takeDamage(10); // Chaque tir inflige 10 dégâts
+                    console.log(`Alex hit! New health: ${hitAlex.health}`); // Debug: new health
                 }
             } else {
-                // Manqué ! (message déjà géré par l'absence de feedback textuel)
-                console.log("Miss!"); // Debugging miss
+                console.log("Miss! No Alex hit."); // Debug: no hit
             }
         }
 
-        // Fonction pour le saut
+        /**
+         * Gère l'action de saut du joueur.
+         */
         function performJump() {
             if (canJump) {
                 playerVerticalVelocity = jumpStrength;
                 canJump = false;
-                // showMessage("Saut !", 500); // Message de saut retiré
             }
         }
 
-        // Fonction pour l'attaque au couteau
+        /**
+         * Gère l'attaque au couteau du joueur.
+         */
         function performKnifeAttack() {
             if (!isKnifeReady) return;
 
             isKnifeReady = false;
-            // showMessage("Coup de couteau !", 700); // Message retiré pour animation visuelle
 
             // Créer et afficher la lame du couteau
             const bladeGeometry = new THREE.BoxGeometry(0.05, 0.5, 0.05); // Lame fine
@@ -1067,7 +1107,7 @@
                     knifeVisual.rotation.z = THREE.MathUtils.lerp(swingRotation.z, Math.PI / 2, (progress - 0.5) * 2);
                 } else {
                     if (knifeVisual.parent) { // S'assure que l'objet est toujours attaché avant de le retirer
-                        camera.remove(knifeVisual); // Remove after animation
+                        camera.remove(knifeVisual); // Supprime après l'animation
                     }
                     return;
                 }
@@ -1077,28 +1117,23 @@
 
 
             // Raycaster pour la détection du coup de couteau (portée courte)
-            const knifeRaycaster = new THREE.Raycaster();
-            // Définir l'origine du rayon juste devant la caméra et dans la direction de la caméra
-            const origin = new THREE.Vector3();
-            camera.getWorldPosition(origin); // Position de la caméra
-            const direction = new THREE.Vector3();
-            camera.getWorldDirection(direction); // Direction de la caméra
+            // Utiliser le raycaster global et le définir à partir de la caméra pour la cohérence
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // Définir le rayon depuis le centre de la vue de la caméra
+            raycaster.far = knifeRange; // Limiter la portée pour l'attaque au couteau
 
-            knifeRaycaster.set(origin, direction);
-            knifeRaycaster.far = knifeRange; // Limiter la portée
-
-            const intersects = knifeRaycaster.intersectObjects(alexes.map(a => a.mesh), true); // Vérifie les alexes uniquement
+            const intersects = raycaster.intersectObjects(alexes.map(a => a.mesh), true); // Vérifie les alexes uniquement
 
             if (intersects.length > 0) {
-                console.log("Knife hit! Intersects:", intersects); // Debugging knife hit
                 const hitObject = intersects[0].object;
-                const hitAlex = alexes.find(alex => alex.mesh === hitObject || alex.mesh.children.includes(hitObject)); // Check if it's the group or a child mesh
+                const hitAlex = alexes.find(alex => alex.mesh === hitObject || alex.mesh.children.includes(hitObject)); // Vérifier si c'est le groupe ou un mesh enfant
 
                 if (hitAlex) {
-                    hitAlex.takeDamage(20); // Knife does more damage (e.g., 20)
-                } else {
-                    console.log("Knife raycast hit something, but it's not a tracked Alex:", hitObject.uuid);
+                    console.log(`Knife hit Alex! Alex initial health: ${hitAlex.health}`); // Debug: initial health
+                    hitAlex.takeDamage(knifeDamage); // Le couteau fait plus de dégâts
+                    console.log(`Alex knife hit! New health: ${hitAlex.health}`); // Debug: new health
                 }
+            } else {
+                console.log("Knife missed!"); // Debug: no hit
             }
 
             // Réactiver le couteau après le cooldown
@@ -1107,10 +1142,11 @@
             }, knifeCooldown);
         }
 
-        // Fonction pour recharger l'arme
+        /**
+         * Gère l'action de rechargement du joueur.
+         */
         function performReload() {
             if (isReloading || totalReserveAmmo <= 0 || currentAmmo === magazineCapacity) {
-                // Pas besoin de message ici, l'auto-rechargement est silencieux si les conditions ne sont pas remplies
                 return;
             }
 
@@ -1119,7 +1155,7 @@
             showMessage("Rechargement...", reloadDuration); // Garde le message de rechargement
 
             const initialArmPos = armMesh.position.clone();
-            const reloadArmPos = new THREE.Vector3(initialArmPos.x, initialArmPos.y - 0.3, initialArmPos.z); // Descend un peu
+            const reloadArmPos = new THREE.Vector3(initialArmPos.x, initialArmPos.y - 0.3, initialArmPos.z); // Descend un peu l'arme
             const initialArmRot = armMesh.rotation.clone();
             const reloadArmRot = new THREE.Euler(initialArmRot.x + 0.3, initialArmRot.y, initialArmRot.z); // Petite rotation
 
@@ -1142,7 +1178,7 @@
                 } else if (elapsed < reloadDuration) {
                     progress = (elapsed - reloadDownDuration) / reloadUpDuration;
                     armMesh.position.lerpVectors(reloadArmPos, initialArmPos, progress);
-                     armMesh.rotation.set(
+                    armMesh.rotation.set(
                         THREE.MathUtils.lerp(reloadArmRot.x, initialArmRot.x, progress),
                         THREE.MathUtils.lerp(reloadArmRot.y, initialArmRot.y, progress),
                         THREE.MathUtils.lerp(reloadArmRot.z, initialArmRot.z, progress)
@@ -1169,38 +1205,50 @@
             animateReload();
         }
 
-        // Met à jour l'affichage des munitions dans l'UI
+        /**
+         * Met à jour l'affichage des munitions dans l'UI.
+         */
         function updateAmmoDisplay() {
             ammoDisplay.textContent = `${currentAmmo} / ${totalReserveAmmo}`;
         }
 
-        // Met à jour l'affichage de la barre de vie
+        /**
+         * Met à jour l'affichage de la barre de vie.
+         */
         function updateHealthDisplay() {
+            // La barre de vie sera toujours rouge
+            // La largeur est basée sur le pourcentage, mais l'affichage est en valeur HP
             const healthPercentage = (playerHealth / maxPlayerHealth) * 100;
             healthBar.style.width = `${healthPercentage}%`;
-            healthBar.textContent = `${Math.round(healthPercentage)}%`;
-            if (playerHealth <= 20) { // Faible vie, couleur rouge plus intense
-                healthBar.style.backgroundColor = '#ff0000';
-            } else if (playerHealth <= 50) { // Vie moyenne, orange
-                healthBar.style.backgroundColor = '#f6ad55';
-            } else { // Vie élevée, vert
-                healthBar.style.backgroundColor = '#48bb78';
-            }
+            healthBar.textContent = `${Math.round(playerHealth)} HP`; // Afficher la valeur HP arrondie
+            healthBar.style.backgroundColor = '#e53e3e'; // Forcer la couleur rouge
         }
 
-        // Classe pour créer un Alex (ennemi)
+        /**
+         * Classe pour créer un Alex (ennemi).
+         */
         class Alex {
+            /**
+             * @param {number} x Position X initiale.
+             * @param {number} y Position Y initiale.
+             * @param {number} z Position Z initiale.
+             * @param {number} health Santé d'Alex.
+             * @param {number} speed Vitesse de déplacement d'Alex.
+             * @param {number} damage Dégâts d'attaque d'Alex.
+             * @param {THREE.Scene} scene La scène Three.js à laquelle ajouter Alex.
+             * @param {THREE.Object3D} player L'objet Three.js du joueur (playerContainer) à cibler.
+             */
             constructor(x, y, z, health, speed, damage, scene, player) {
                 this.health = health;
                 this.maxHealth = health;
                 this.speed = speed;
                 this.damage = damage;
-                this.attackCooldown = 0;
-                this.lastAttackTime = 0;
+                this.attackCooldown = 0; // Cooldown des attaques d'Alex
+                this.lastAttackTime = 0; // Horodatage de la dernière attaque
                 this.scene = scene;
                 this.player = player; // Référence au playerContainer
 
-                // Création du mesh (bonhomme Minecraft simple)
+                // Création du mesh d'Alex (personnage simple de type Minecraft)
                 this.mesh = new THREE.Group();
 
                 // Tête (vert foncé)
@@ -1239,38 +1287,81 @@
 
                 this.mesh.position.set(x, y, z);
                 this.scene.add(this.mesh);
+
+                // Affichage des PV d'Alex (Sprite avec CanvasTexture)
+                this.healthCanvas = document.createElement('canvas');
+                this.healthCanvas.width = 128;
+                this.healthCanvas.height = 32;
+                this.healthContext = this.healthCanvas.getContext('2d');
+                this.healthTexture = new THREE.CanvasTexture(this.healthCanvas);
+                this.healthTexture.minFilter = THREE.LinearFilter; // Pour un rendu plus lisse lors du scaling
+
+                this.healthSpriteMaterial = new THREE.SpriteMaterial({ map: this.healthTexture });
+                this.healthSprite = new THREE.Sprite(this.healthSpriteMaterial);
+                this.healthSprite.scale.set(2, 0.5, 1); // Redimensionner le sprite pour qu'il soit visible (largeur, hauteur, profondeur)
+                this.healthSprite.position.y = 2.0; // Positionner au-dessus de la tête d'Alex
+                this.mesh.add(this.healthSprite);
+                this.updateHealthSprite(); // Mise à jour initiale
             }
 
-            // Met à jour la logique de l'Alex à chaque frame
+            /**
+             * Met à jour la logique d'Alex à chaque frame.
+             * @param {number} deltaTime Temps écoulé depuis la dernière frame (en secondes).
+             */
             update(deltaTime) {
                 if (!gameActive) return; // Ne bouge pas si le jeu est en pause
 
                 const playerPos = this.player.position;
                 const alexPos = this.mesh.position;
 
-                // Calculer la direction vers le joueur
-                const direction = new THREE.Vector3().subVectors(playerPos, alexPos).normalize();
+                let directionToPlayer = new THREE.Vector3().subVectors(playerPos, alexPos);
+                directionToPlayer.y = 0; // Conserver le mouvement horizontal
+                directionToPlayer.normalize();
 
-                // Faire pivoter Alex pour regarder le joueur (seulement sur l'axe Y)
-                const angle = Math.atan2(direction.x, direction.z);
-                this.mesh.rotation.y = angle;
+                const currentDistanceToPlayer = alexPos.distanceTo(playerPos);
 
-                // Vérifier la distance au joueur
-                const distanceToPlayer = alexPos.distanceTo(playerPos);
+                let desiredMovementVector = directionToPlayer.clone().multiplyScalar(this.speed * deltaTime);
 
-                if (distanceToPlayer > playerCollisionRadius + 1.0) { // Si Alex est assez loin, il avance
-                    this.mesh.position.x += direction.x * this.speed;
-                    this.mesh.position.z += direction.z * this.speed;
-                } else { // Alex est assez proche, tenter d'attaquer
+                // Collision detection for obstacle avoidance
+                const alexForwardRaycaster = new THREE.Raycaster(
+                    alexPos.clone().add(new THREE.Vector3(0, 0.5, 0)), // Ray origin slightly above ground
+                    directionToPlayer,
+                    0, // near
+                    ALEX_COLLISION_RADIUS + 1 // look ahead for obstacles
+                );
+                const AlexIntersects = alexForwardRaycaster.intersectObjects(collidableObjects, true);
+
+                if (AlexIntersects.length > 0 && AlexIntersects[0].distance < ALEX_COLLISION_RADIUS + 0.5) {
+                    // Obstacle detected, try to turn
+                    const turnAngle = (Math.random() > 0.5 ? 1 : -1) * Math.PI / 8; // Turn 22.5 degrees randomly
+                    desiredMovementVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), turnAngle);
+                    desiredMovementVector.normalize().multiplyScalar(this.speed * deltaTime);
+                }
+                
+                // Appliquer le mouvement pondéré par deltaTime
+                if (currentDistanceToPlayer > playerCollisionRadius + ALEX_COLLISION_RADIUS + 0.1) { // Laisser un petit espace entre joueur et Alex
+                    this.mesh.position.add(desiredMovementVector);
+                } else {
+                    // Alex est proche du joueur, attaque
                     this.attackPlayer();
                 }
 
-                // Assurer qu'Alex reste sur le sol
+                // Faire pivoter Alex pour regarder le joueur (seulement sur l'axe Y)
+                const angle = Math.atan2(directionToPlayer.x, directionToPlayer.z);
+                this.mesh.rotation.y = angle;
+                
+                // S'assurer qu'Alex reste sur le sol
                 this.mesh.position.y = 0.5;
             }
 
+            /**
+             * Gère les dégâts subis par Alex.
+             * @param {number} amount Le montant des dégâts à subir.
+             */
             takeDamage(amount) {
                 this.health -= amount;
+                if (this.health < 0) this.health = 0; // Empêcher la santé négative
+                
                 // Feedback visuel de dégâts (ex: clignotement rouge)
                 this.mesh.traverse((object) => {
                     if (object.isMesh) {
@@ -1281,20 +1372,55 @@
                     }
                 });
 
+                this.updateHealthSprite(); // Met à jour l'affichage des PV au-dessus d'Alex
+
                 if (this.health <= 0) {
                     this.die();
                 }
             }
 
+            /**
+             * Met à jour le sprite de la barre de vie au-dessus d'Alex.
+             */
+            updateHealthSprite() {
+                const canvas = this.healthCanvas;
+                const ctx = this.healthContext;
+                const width = canvas.width;
+                const height = canvas.height;
+
+                ctx.clearRect(0, 0, width, height);
+
+                // Fond de la barre de vie
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(0, 0, width, height);
+
+                // Remplissage de la barre de vie
+                const healthWidth = (this.health / this.maxHealth) * width;
+                ctx.fillStyle = '#e53e3e'; // Couleur rouge pour la vie d'Alex
+                ctx.fillRect(0, 0, healthWidth, height);
+
+                // Texte des PV
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 20px Inter'; // Ajuster la taille de la police si nécessaire
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${Math.round(this.health)} HP`, width / 2, height / 2);
+
+                this.healthTexture.needsUpdate = true; // Demander à Three.js de mettre à jour la texture
+            }
+
+            /**
+             * Alex attaque le joueur.
+             */
             attackPlayer() {
                 const currentTime = performance.now();
                 if (currentTime - this.lastAttackTime > ALEX_ATTACK_COOLDOWN) {
-                    // Vérifier si le joueur est à portée d'attaque (ici, il l'est déjà si la fonction est appelée)
-                    if (playerDamageCooldown <= 0) { // Vérifier le cooldown de dégâts du joueur
+                    // Vérifier le cooldown de dégâts du joueur
+                    if (playerDamageCooldown <= 0) {
                         playerHealth -= this.damage;
                         updateHealthDisplay();
-                        showMessage(`Alex vous a attaqué ! Vie restante: ${playerHealth}`, 1500);
                         playerDamageCooldown = playerDamageCooldownDuration; // Réinitialiser le cooldown
+                        console.log(`Alex attacked player! Player health: ${playerHealth}`); // Debug attack
                     }
                     this.lastAttackTime = currentTime;
 
@@ -1310,8 +1436,19 @@
                 }
             }
 
+            /**
+             * Gère la mort d'Alex.
+             */
             die() {
                 this.scene.remove(this.mesh);
+                // Libérer également les ressources du sprite pour économiser la mémoire
+                if (this.healthSprite) {
+                    this.mesh.remove(this.healthSprite);
+                    this.healthSprite.material.dispose();
+                    this.healthSprite.geometry.dispose();
+                    if (this.healthTexture) this.healthTexture.dispose();
+                }
+
                 alexes = alexes.filter(a => a !== this); // Le retirer du tableau principal des alexes
                 alexesKilledThisWave++;
                 totalAlexesKilledOverall++;
@@ -1325,14 +1462,22 @@
             }
         }
 
-        // Fonction pour réinitialiser le jeu pour une nouvelle partie
+        /**
+         * Réinitialise l'état du jeu pour une nouvelle partie.
+         */
         function resetGame() {
             // Nettoyage de la scène des anciens Alexes
-            alexes.forEach(alex => scene.remove(alex.mesh));
+            alexes.forEach(alex => {
+                scene.remove(alex.mesh);
+                if (alex.healthSprite) {
+                    alex.mesh.remove(alex.healthSprite);
+                    alex.healthSprite.material.dispose();
+                    alex.healthSprite.geometry.dispose();
+                    if (alex.healthTexture) alex.healthTexture.dispose();
+                }
+            });
             alexes = [];
-            // Ne pas filtrer le sol, juste les bâtiments si nous voulons les recréer
-            // collidableObjects = collidableObjects.filter(obj => obj.geometry.type !== 'BoxGeometry'); // Remove old buildings, keep ground
-
+            
             // Réinitialisation des statistiques du joueur
             playerHealth = maxPlayerHealth;
             currentAmmo = magazineCapacity;
@@ -1348,8 +1493,8 @@
             alexesKilledThisWave = 0;
             totalAlexesKilledOverall = 0;
 
-            // Réinitialisation de la position du joueur
-            playerContainer.position.set(0, 1.7, 5);
+            // Réinitialisation de la position du joueur et de l'orientation de la caméra
+            playerContainer.position.set(0, 1.7, 5); // Position de départ pour la nouvelle map
             camera.rotation.set(0, 0, 0); // Réinitialiser l'orientation de la caméra
 
             // Mise à jour de l'UI
@@ -1365,52 +1510,223 @@
             }
             if (knifeVisual && knifeVisual.parent) {
                 camera.remove(knifeVisual);
+                knifeVisual = null; // Supprimer la référence
             }
             
-            // Re-générer la carte et les ennemis pour la première vague
-            // Nous ne générons les bâtiments qu'une seule fois dans init(), pas à chaque resetGame
-            // Si la carte devait changer à chaque partie, alors on appellerait generateInitialWorld() ici.
-            // Pour l'instant, on suppose que les bâtiments sont fixes après init().
-
             startNextWave(); // Démarrer la première vague
         }
 
-        // Fonction pour générer le monde initial (bâtiments)
-        // Cette fonction ne doit être appelée qu'une seule fois lors de l'initialisation du jeu
-        function generateInitialWorld() {
+        /**
+         * Fonction utilitaire pour créer un bloc et l'ajouter à la scène et aux objets collidables.
+         * @param {number} width Largeur du bloc.
+         * @param {number} height Hauteur du bloc.
+         * @param {number} depth Profondeur du bloc.
+         * @param {THREE.Material} material Matériau du bloc.
+         * @param {number} x Position X.
+         * @param {number} y Position Y.
+         * @param {number} z Position Z.
+         */
+        function createBlock(width, height, depth, material, x, y, z) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+            collidableObjects.push(mesh);
+            return mesh;
+        }
+
+        /**
+         * Génère la carte fixe de la centrale électrique.
+         * Cette fonction ne doit être appelée qu'une seule fois lors de l'initialisation du jeu.
+         */
+        function generatePowerPlant() {
+            // Nettoyer les anciens objets collidables de la map précédente
+            collidableObjects.forEach(obj => {
+                if (obj.parent) scene.remove(obj);
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) {
+                    if (Array.isArray(obj.material)) {
+                        obj.material.forEach(m => m.dispose());
+                    } else {
+                        obj.material.dispose();
+                    }
+                }
+            });
+            collidableObjects = []; // Réinitialiser le tableau
+
             const textureLoader = new THREE.TextureLoader();
-            const buildingTexture = textureLoader.load('https://placehold.co/512x512/606060/D4AF37.png');
-            buildingTexture.wrapS = THREE.RepeatWrapping;
-            buildingTexture.wrapT = THREE.RepeatWrapping;
-            buildingTexture.repeat.set(2, 2);
 
-            const buildingMaterial = new THREE.MeshStandardMaterial({ map: buildingTexture, roughness: 0.7, metalness: 0.1 });
-            const numberOfBuildings = 200;
-            const mapLimit = 90; // Rayon max de la carte pour le placement des bâtiments
-            for (let i = 0; i < numberOfBuildings; i++) {
-                const buildingWidth = Math.random() * 8 + 3;
-                const buildingDepth = Math.random() * 8 + 3;
-                const buildingHeight = Math.random() * 20 + 5;
+            // Textures
+            const wallTexture = textureLoader.load('https://placehold.co/512x512/4A5568/CBD5E0.png',
+                () => {}, undefined, (err) => console.error('Error loading wall texture:', err)); // Gris-bleu pour le béton
+            wallTexture.wrapS = THREE.RepeatWrapping;
+            wallTexture.wrapT = THREE.RepeatWrapping;
+            wallTexture.repeat.set(5, 5); // Répéter pour les grandes surfaces
 
-                const buildingGeometry = new THREE.BoxGeometry(buildingWidth, buildingHeight, buildingDepth);
-                const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+            const metalTexture = textureLoader.load('https://placehold.co/512x512/2D3748/A0AEC0.png',
+                () => {}, undefined, (err) => console.error('Error loading metal texture:', err)); // Métal plus sombre
+            metalTexture.wrapS = THREE.RepeatWrapping;
+            metalTexture.wrapT = THREE.RepeatWrapping;
+            metalTexture.repeat.set(3, 3);
 
-                // Position aléatoire sur la carte agrandie
-                building.position.x = (Math.random() - 0.5) * mapLimit * 2;
-                building.position.z = (Math.random() - 0.5) * mapLimit * 2;
-                building.position.y = buildingHeight / 2;
+            const floorTexture = textureLoader.load('https://placehold.co/1024x1024/303030/808080.png',
+                () => {}, undefined, (err) => console.error('Error loading floor texture:', err)); // Réutiliser la texture du sol pour les sols
+            floorTexture.wrapS = THREE.RepeatWrapping;
+            floorTexture.wrapT = THREE.RepeatWrapping;
+            floorTexture.repeat.set(5, 5);
 
-                scene.add(building);
-                collidableObjects.push(building); // Ajouter le bâtiment au tableau des objets à collision
+            const concreteMaterial = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.7, metalness: 0.1 });
+            const metalMaterial = new THREE.MeshStandardMaterial({ map: metalTexture, roughness: 0.3, metalness: 0.7 });
+            const floorMaterial = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.8 });
+            
+            // Re-créer le sol principal (qui était peut-être nettoyé)
+            const groundGeometry = new THREE.PlaneGeometry(200, 200);
+            const ground = new THREE.Mesh(groundGeometry, floorMaterial); // Utilise floorMaterial pour le sol
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
+            collidableObjects.push(ground);
+
+
+            // --- Bâtiment Principal (Salle des Turbines) ---
+            const mainHallX = 0;
+            const mainHallZ = 0;
+            const mainHallWidth = 60;
+            const mainHallDepth = 40;
+            const mainHallHeight = 15;
+            const wallThickness = 1;
+
+            // Sol du bâtiment principal
+            createBlock(mainHallWidth, wallThickness, mainHallDepth, floorMaterial, mainHallX, wallThickness / 2, mainHallZ);
+
+            // Murs du bâtiment principal (gauche, droite, arrière, avant avec ouvertures)
+            createBlock(wallThickness, mainHallHeight, mainHallDepth, concreteMaterial, mainHallX - mainHallWidth / 2 - wallThickness / 2, mainHallHeight / 2, mainHallZ); // Mur gauche
+            createBlock(wallThickness, mainHallHeight, mainHallDepth, concreteMaterial, mainHallX + mainHallWidth / 2 + wallThickness / 2, mainHallHeight / 2, mainHallZ); // Mur droit
+
+            // Mur arrière
+            createBlock(mainHallWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX, mainHallHeight / 2, mainHallZ - mainHallDepth / 2 - wallThickness / 2);
+
+            // Mur avant avec 3 entrées espacées
+            const entranceWidth = 10;
+            const wallSegmentWidth = (mainHallWidth - (entranceWidth * 3) - (wallThickness * 2)) / 2; // Adjusted for 3 entrances
+            const gap = 5; // Gap between entrances
+            const totalEntranceZoneWidth = (entranceWidth * 3) + (gap * 2);
+            const startX = mainHallX - totalEntranceZoneWidth / 2;
+
+            // Left segment
+            createBlock((mainHallWidth - totalEntranceZoneWidth) / 2, mainHallHeight, wallThickness, concreteMaterial, startX - ((mainHallWidth - totalEntranceZoneWidth) / 4), mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
+            // 3 Entrances with gaps
+            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, startX + entranceWidth/2, mainHallHeight/2, mainHallZ + mainHallDepth / 2 + wallThickness / 2); // Entrance 1
+            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, startX + entranceWidth/2 + entranceWidth + gap, mainHallHeight/2, mainHallZ + mainHallDepth / 2 + wallThickness / 2); // Entrance 2
+            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, startX + entranceWidth/2 + (entranceWidth + gap)*2, mainHallHeight/2, mainHallZ + mainHallDepth / 2 + wallThickness / 2); // Entrance 3
+            // Right segment
+            createBlock((mainHallWidth - totalEntranceZoneWidth) / 2, mainHallHeight, wallThickness, concreteMaterial, startX + totalEntranceZoneWidth + ((mainHallWidth - totalEntranceZoneWidth) / 4), mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
+
+            // Toit du bâtiment principal
+            createBlock(mainHallWidth + wallThickness * 2, wallThickness, mainHallDepth + wallThickness * 2, concreteMaterial, mainHallX, mainHallHeight + wallThickness / 2, mainHallZ);
+
+
+            // Turbines (intérieur du bâtiment principal)
+            const turbineY = 2; // Hauteur des turbines par rapport au sol
+            for (let i = -1; i <= 1; i++) {
+                const turbine = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 10, 32), metalMaterial);
+                turbine.rotation.z = Math.PI / 2; // Allonger
+                turbine.position.set(mainHallX + i * 15, turbineY + turbine.geometry.parameters.height / 2, mainHallZ - 10);
+                scene.add(turbine);
+                collidableObjects.push(turbine);
             }
+            // Autres éléments de la salle des turbines (boîtes, conduits)
+            createBlock(2, 2, 8, metalMaterial, mainHallX - 20, turbineY + 1, mainHallZ + 5);
+            createBlock(2, 2, 8, metalMaterial, mainHallX + 20, turbineY + 1, mainHallZ + 5);
+
+
+            // --- Bâtiment de la Chaudière ---
+            const boilerHallX = mainHallX + mainHallWidth / 2 + wallThickness + 20; // Déplacé plus loin
+            const boilerHallZ = mainHallZ;
+            const boilerWidth = 25;
+            const boilerDepth = 25;
+            const boilerFloorHeight = 5;
+            const numBoilerFloors = 6;
+            const totalBoilerHeight = boilerFloorHeight * numBoilerFloors;
+
+            // Base et structure du bâtiment de la chaudière
+            createBlock(boilerWidth, wallThickness, boilerDepth, floorMaterial, boilerHallX, wallThickness / 2, boilerHallZ); // Sol
+            createBlock(boilerWidth + wallThickness * 2, wallThickness, boilerDepth + wallThickness * 2, concreteMaterial, boilerHallX, totalBoilerHeight + wallThickness / 2, boilerHallZ); // Toit
+
+            // Murs du bâtiment de la chaudière
+            createBlock(wallThickness, totalBoilerHeight, boilerDepth, concreteMaterial, boilerHallX - boilerWidth / 2 - wallThickness / 2, totalBoilerHeight / 2, boilerHallZ); // Mur gauche
+            createBlock(wallThickness, totalBoilerHeight, boilerDepth, concreteMaterial, boilerHallX + boilerWidth / 2 + wallThickness / 2, totalBoilerHeight / 2, boilerHallZ); // Mur droit
+            createBlock(boilerWidth, totalBoilerHeight, wallThickness, concreteMaterial, boilerHallX, totalBoilerHeight / 2, boilerHallZ - boilerDepth / 2 - wallThickness / 2); // Mur arrière
+            createBlock(boilerWidth, totalBoilerHeight, wallThickness, concreteMaterial, boilerHallX, totalBoilerHeight / 2, boilerHallZ + boilerDepth / 2 + wallThickness / 2); // Mur avant
+
+            // Grande chaudière cylindrique au centre
+            const mainBoiler = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, totalBoilerHeight - 2, 32), metalMaterial);
+            mainBoiler.position.set(boilerHallX, totalBoilerHeight / 2, boilerHallZ);
+            scene.add(mainBoiler);
+            collidableObjects.push(mainBoiler);
+
+            // Étages et escaliers de la chaudière
+            for (let i = 1; i < numBoilerFloors; i++) {
+                const floorY = (i * boilerFloorHeight) + wallThickness / 2;
+                createBlock(boilerWidth - 2, wallThickness, boilerDepth - 2, floorMaterial, boilerHallX, floorY, boilerHallZ); // Étages
+
+                // Escalier en rampe pour chaque étage
+                const stairRampWidth = 3;
+                const stairRampDepth = 4;
+                const stairRampHeight = boilerFloorHeight;
+                const stairOffset = (boilerWidth / 2) - (stairRampWidth / 2) - 1; // Décalage depuis le bord
+
+                const stairGeometry = new THREE.BoxGeometry(stairRampWidth, stairRampHeight, stairRampDepth);
+                const stair = new THREE.Mesh(stairGeometry, metalMaterial);
+                
+                stair.position.set(
+                    boilerHallX + stairOffset,
+                    floorY - boilerFloorHeight / 2 + stairRampHeight / 2, // Base de la rampe
+                    boilerHallZ - boilerDepth / 2 + stairRampDepth / 2 // Un coin
+                );
+                stair.rotation.x = Math.atan2(stairRampHeight, stairRampDepth) - Math.PI / 2; // Inclinaison de la rampe
+                scene.add(stair);
+                collidableObjects.push(stair);
+
+                 // Pour l'esthétique, on peut ajouter une rotation alternée ou des paliers
+                if (i % 2 === 0) { // Alterner le côté de l'escalier ou la direction
+                     stair.position.z += boilerDepth - stairRampDepth - 2; // Déplacer vers l'autre côté
+                     stair.rotation.y += Math.PI; // Pivoter pour changer de direction
+                }
+            }
+
+
+            // --- Tunnel de connexion entre les deux bâtiments ---
+            const tunnelLengthBetween = 15; // Longueur du tunnel
+            createBlock(tunnelLengthBetween, mainHallHeight, entranceWidth, concreteMaterial, mainHallX + mainHallWidth / 2 + wallThickness + tunnelLengthBetween / 2, mainHallHeight / 2, mainHallZ);
+            // Sol du tunnel
+            createBlock(tunnelLengthBetween, wallThickness, entranceWidth, floorMaterial, mainHallX + mainHallWidth / 2 + wallThickness + tunnelLengthBetween / 2, wallThickness / 2, mainHallZ);
+
+
+            // Ajout de petits éléments pour briser la monotonie
+            createBlock(2, 4, 2, metalMaterial, mainHallX + 10, 2, mainHallZ + 15);
+            createBlock(2, 4, 2, metalMaterial, mainHallX - 10, 2, mainHallZ + 15);
+            createBlock(1, 10, 1, metalMaterial, boilerHallX + 5, 5, boilerHallZ + 5);
         }
 
 
-        // Fonction pour démarrer la prochaine vague
+        /**
+         * Démarre la prochaine vague d'ennemis.
+         */
         function startNextWave() {
             currentWave++;
             alexesKilledThisWave = 0;
-            alexesInCurrentWave = []; // Réinitialise les Alex de la vague précédente
+            // Supprimer les Alex de la vague précédente de la scène et du tableau
+            alexesInCurrentWave.forEach(alex => {
+                scene.remove(alex.mesh);
+                if (alex.healthSprite) {
+                    alex.mesh.remove(alex.healthSprite);
+                    alex.healthSprite.material.dispose();
+                    alex.healthSprite.geometry.dispose();
+                    if (alex.healthTexture) alex.healthTexture.dispose();
+                }
+            });
+            alexesInCurrentWave = []; 
+            alexes = []; // Vider également le tableau global des Alex
 
             // Calcul du nombre d'Alex pour cette vague
             const numAlexThisWave = 5 + (currentWave * 2); // Chaque vague a plus d'Alex
@@ -1418,77 +1734,92 @@
             showMessage(`Manche ${currentWave} ! Préparez-vous !`, 2000);
 
             // Spawner les Alex
-            const mapLimit = 90; // Réutiliser la limite de la carte pour le spawn
+            const spawnZonePositions = [
+                new THREE.Vector3(0, 0, -30), // Devant le bâtiment principal
+                new THREE.Vector3(0, 0, 30),  // Derrière le bâtiment principal
+                new THREE.Vector3(-40, 0, 0), // Côté gauche de la map
+                new THREE.Vector3(40, 0, 0),  // Côté droit de la map (vers la chaudière)
+                new THREE.Vector3(20, 0, 20), // Zone chaudière
+                new THREE.Vector3(-20, 0, -20) // Autre zone
+            ];
+
             for (let i = 0; i < numAlexThisWave; i++) {
                 // Ajuster les propriétés des Alex en fonction de la manche
-                const alexHealth = ALEX_BASE_HEALTH * (1 + (currentWave * 0.1)); // Plus de vie par manche
+                const alexHealth = Math.round(ALEX_BASE_HEALTH * (1 + (currentWave * 0.1))); // Plus de vie par manche, arrondi
                 const alexSpeed = ALEX_BASE_SPEED * (1 + (currentWave * 0.005)); // Vitesse légèrement augmentée par manche
                 const alexDamage = ALEX_BASE_DAMAGE * (1 + (currentWave * 0.01)); // Dégâts légèrement augmentés par manche
 
                 let spawnX, spawnZ;
                 let validSpawn = false;
                 // Tenter de spawner Alex loin du joueur et des bâtiments
-                for (let attempt = 0; attempt < 10; attempt++) {
-                    spawnX = (Math.random() - 0.5) * (mapLimit * 2);
-                    spawnZ = (Math.random() - 0.5) * (mapLimit * 2);
+                for (let attempt = 0; attempt < 20; attempt++) { // Augmenter les tentatives de spawn
+                    const spawnIndex = Math.floor(Math.random() * spawnZonePositions.length);
+                    const baseSpawn = spawnZonePositions[spawnIndex];
+
+                    spawnX = baseSpawn.x + (Math.random() - 0.5) * 10; // Petite variation autour du point de spawn
+                    spawnZ = baseSpawn.z + (Math.random() - 0.5) * 10;
                     
                     const spawnPosition = new THREE.Vector3(spawnX, 1.7, spawnZ);
                     const distanceToPlayer = spawnPosition.distanceTo(playerContainer.position);
                     
-                    // S'assurer qu'Alex spawn loin du joueur
-                    if (distanceToPlayer < 30) continue; 
+                    // S'assurer qu'Alex spawn loin du joueur (minimum 15 unités)
+                    if (distanceToPlayer < 15) continue; 
 
-                    // S'assurer qu'Alex ne spawn pas dans un bâtiment
-                    let collisionFound = false;
-                    const tempAlexRaycaster = new THREE.Raycaster(spawnPosition, new THREE.Vector3(0, -1, 0), 0, 5); // Rayon vers le bas
-                    const intersections = tempAlexRaycaster.intersectObjects(collidableObjects, true);
-                    if (intersections.length === 0 || intersections[0].object.geometry.type !== 'PlaneGeometry') { // Ne doit pas être dans les airs ou dans un bâtiment
-                        continue;
-                    }
+                    // Vérifier si le point de spawn est trop proche d'un objet collidable
+                    const AlexBoundingBox = new THREE.Box3().setFromCenterAndSize(
+                        spawnPosition, new THREE.Vector3(ALEX_COLLISION_RADIUS * 2, 2, ALEX_COLLISION_RADIUS * 2));
                     
-                    // Vérifier les collisions horizontales proches
-                    const alexRadius = 0.5; // Rayon estimé d'Alex
-                    const checkDirections = [
-                        new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
-                        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)
-                    ];
-                    for (const dir of checkDirections) {
-                        tempAlexRaycaster.set(spawnPosition, dir);
-                        tempAlexRaycaster.far = alexRadius + 0.1;
-                        const nearbyCollisions = tempAlexRaycaster.intersectObjects(collidableObjects, true);
-                        if (nearbyCollisions.length > 0 && nearbyCollisions[0].distance < alexRadius + 0.05) {
-                            collisionFound = true;
+                    let intersectionWithStructure = false;
+                    for (const obj of collidableObjects) {
+                        // Pour les meshes sans boundingBox précalculée, nous devons la calculer
+                        if (!obj.geometry.boundingBox) {
+                            obj.geometry.computeBoundingBox();
+                        }
+                        const objBox = obj.geometry.boundingBox.clone().applyMatrix4(obj.matrixWorld);
+                        if (AlexBoundingBox.intersectsBox(objBox)) {
+                            intersectionWithStructure = true;
                             break;
                         }
                     }
-                    if (!collisionFound) {
-                        validSpawn = true;
-                        break;
+                    if (intersectionWithStructure) continue;
+
+                    // Vérifier que le point de spawn est bien sur le sol (pas en l'air)
+                    const tempAlexRaycaster = new THREE.Raycaster(spawnPosition, new THREE.Vector3(0, -1, 0), 0, 5); // Rayon vers le bas
+                    const intersections = tempAlexRaycaster.intersectObjects(collidableObjects, true);
+                    const hitGround = intersections.some(intersect => intersect.object === ground); // S'assure de toucher le mesh du sol
+                    if (!hitGround) { 
+                        continue; 
                     }
+                    
+                    validSpawn = true;
+                    break; // Point de spawn valide trouvé
                 }
                 
                 if (!validSpawn) {
-                    console.warn("Could not find a valid spawn point for Alex after multiple attempts.");
-                    // Si on ne trouve pas de point valide, on le spawn juste aléatoirement, ça peut causer des bugs mais au moins il apparaît
-                    spawnX = (Math.random() - 0.5) * (mapLimit * 1.5);
-                    spawnZ = (Math.random() - 0.5) * (mapLimit * 1.5);
+                    console.warn("Impossible de trouver un point de spawn valide pour Alex après plusieurs tentatives. Spawning aléatoirement.");
+                    // Fallback : si aucun point valide n'est trouvé, spawn aléatoirement (peut causer des problèmes)
+                    spawnX = (Math.random() - 0.5) * (spawnAreaRadius * 1.5);
+                    spawnZ = (Math.random() - 0.5) * (spawnAreaRadius * 1.5);
                 }
-
 
                 const alex = new Alex(spawnX, 0.5, spawnZ, alexHealth, alexSpeed, alexDamage, scene, playerContainer);
                 alexes.push(alex);
-                alexesInCurrentWave.push(alex); // Garde une trace des Alex de cette vague
+                alexesInCurrentWave.push(alex); // Garder une trace des Alex de cette vague
             }
             updateWaveInfoDisplay();
         }
 
-        // Met à jour l'affichage des informations de vague
+        /**
+         * Met à jour l'affichage des informations de vague.
+         */
         function updateWaveInfoDisplay() {
             currentWaveDisplay.textContent = currentWave;
             alexesRemainingDisplay.textContent = alexes.length;
         }
 
-        // Fonction pour terminer le jeu (vie du joueur à 0)
+        /**
+         * Termine le jeu (ex: vie du joueur à 0).
+         */
         function endGame() {
             gameActive = false;
             currentUIMode = 'gameOver';
@@ -1520,9 +1851,15 @@
             console.log("GAME OVER. Alexes tués:", totalAlexesKilledOverall, "Manches survécues:", currentWave);
         }
 
-        // Boucle d'animation principale
+        /**
+         * Boucle d'animation principale. Met à jour l'état du jeu et rend la scène.
+         */
         function animate() {
             requestAnimationFrame(animate); // Demande la prochaine frame
+
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastFrameTime) / 1000; // Delta time en secondes
+            lastFrameTime = currentTime;
 
             if (gameActive) {
                 // Réinitialiser la vélocité
@@ -1540,24 +1877,23 @@
                 rightDir.y = 0; // Garder le strafe horizontal
                 rightDir.normalize();
 
-
                 // Calculer le mouvement désiré avant la vérification de collision
                 let desiredMoveX = 0;
                 let desiredMoveZ = 0;
 
                 if (keyboard[keyBindings.moveForward]) {
-                    desiredMoveZ += moveSpeed;
+                    desiredMoveZ += moveSpeed * deltaTime;
                 }
                 if (keyboard[keyBindings.moveBackward]) {
-                    desiredMoveZ -= moveSpeed;
+                    desiredMoveZ -= moveSpeed * deltaTime;
                 }
                 // Correction du strafe :
                 // `rightDir` pointe déjà vers la droite. Pour aller à gauche, on inverse.
                 if (keyboard[keyBindings.strafeLeft]) {
-                    desiredMoveX -= moveSpeed;
+                    desiredMoveX -= moveSpeed * deltaTime;
                 }
                 if (keyboard[keyBindings.strafeRight]) {
-                    desiredMoveX += moveSpeed;
+                    desiredMoveX += moveSpeed * deltaTime;
                 }
 
                 // Appliquer le mouvement XZ après vérification des collisions
@@ -1578,9 +1914,8 @@
                         nextPosition.add(moveVectorZ);
                     } else {
                         // Collision, ajuster le mouvement au point de collision
-                        // Move up to the collision point minus a small buffer
+                        // Déplacer jusqu'au point de collision moins un petit tampon
                         nextPosition.add(moveVectorZ.clone().normalize().multiplyScalar(intersects[0].distance - playerCollisionRadius - 0.01));
-                        // console.log("Collision Z! Stopped by:", intersects[0].object.name, "Distance:", intersects[0].distance); // Debug
                     }
                 }
 
@@ -1597,10 +1932,31 @@
                         nextPosition.add(moveVectorX);
                     } else {
                         nextPosition.add(moveVectorX.clone().normalize().multiplyScalar(intersects[0].distance - playerCollisionRadius - 0.01));
-                        // console.log("Collision X! Stopped by:", intersects[0].object.name, "Distance:", intersects[0].distance); // Debug
                     }
                 }
                 
+                // Vérification de collision joueur-Alex et repoussage
+                alexes.forEach(alex => {
+                    const combinedRadius = playerCollisionRadius + ALEX_COLLISION_RADIUS;
+                    const distanceVector = new THREE.Vector3().subVectors(nextPosition, alex.mesh.position);
+                    distanceVector.y = 0; // Ne considérer que la distance horizontale pour le repoussage de collision
+
+                    const currentDistance = distanceVector.length();
+
+                    if (currentDistance < combinedRadius) {
+                        const overlap = combinedRadius - currentDistance;
+                        if (currentDistance === 0) { // Éviter la division par zéro si les positions sont identiques
+                            distanceVector.x = (Math.random() - 0.5) * 0.1; // Petite perturbation aléatoire
+                            distanceVector.z = (Math.random() - 0.5) * 0.1; // Petite perturbation aléatoire
+                            distanceVector.normalize();
+                        } else {
+                            distanceVector.normalize();
+                        }
+                        // Repousser le joueur le long du vecteur normalisé d'Alex vers le joueur de la quantité de chevauchement
+                        nextPosition.add(distanceVector.multiplyScalar(overlap));
+                    }
+                });
+
                 playerContainer.position.x = nextPosition.x;
                 playerContainer.position.z = nextPosition.z;
 
@@ -1618,12 +1974,12 @@
 
                 // Mise à jour et mouvement des Alexes
                 alexes.forEach(alex => {
-                    alex.update(1); // Delta time de 1 pour une mise à jour simple
+                    alex.update(deltaTime); // Passer le deltaTime
                 });
 
                 // Gérer le cooldown de dégâts du joueur
                 if (playerDamageCooldown > 0) {
-                    playerDamageCooldown -= 1000 / 60; // Réduire chaque frame (environ 60 FPS)
+                    playerDamageCooldown -= deltaTime * 1000; // Réduire en millisecondes par seconde
                     if (playerDamageCooldown < 0) playerDamageCooldown = 0;
                 }
             }
@@ -1633,7 +1989,9 @@
 
         // --- Fonctions de gestion des écrans ---
 
-        // Fonction pour afficher le menu principal
+        /**
+         * Affiche l'écran du menu principal et cache tous les autres éléments de l'interface utilisateur.
+         */
         function showMenuScreen() {
             currentUIMode = 'mainMenu'; // Met à jour l'état de l'UI
             mainMenuDiv.style.display = 'flex';
@@ -1648,7 +2006,7 @@
             healthDisplay.style.display = 'none'; // Cache l'affichage de la vie
             waveInfo.style.display = 'none'; // Cache les infos de manche
             gameOverScreen.style.display = 'none'; // Cache l'écran de fin de jeu
-            gameActive = false;
+            gameActive = false; // S'assure que la logique du jeu est en pause
             // Met à jour les boutons de remappage des touches avec les liaisons actuelles lors du retour au menu
             updateKeyRemapButtons();
             // Réactive les animations de fond du menu
@@ -1656,11 +2014,13 @@
             console.log("Affichage de l'écran du menu principal. Mode UI:", currentUIMode);
         }
 
-        // Fonction pour afficher l'écran des paramètres
+        /**
+         * Affiche l'écran des paramètres et cache les autres éléments du menu principal.
+         */
         function showSettingsScreen() {
             previousUIMode = currentUIMode; // Sauvegarde l'état précédent
             currentUIMode = 'settings'; // Met à jour l'état de l'UI
-            mainMenuDiv.style.display = 'flex';
+            mainMenuDiv.style.display = 'flex'; // Garde le div du menu principal visible car les paramètres sont à l'intérieur
             document.getElementById('main-menu-title').style.display = 'none'; // Cache le titre du menu principal
             document.getElementById('menu-buttons-container').style.display = 'none'; // Cache les boutons du menu principal
             settingsSection.style.display = 'flex'; // Affiche la section des paramètres
@@ -1672,7 +2032,7 @@
             healthDisplay.style.display = 'none'; // Cache l'affichage de la vie
             waveInfo.style.display = 'none'; // Cache les infos de manche
             gameOverScreen.style.display = 'none'; // Cache l'écran de fin de jeu
-            gameActive = false;
+            gameActive = false; // S'assure que la logique du jeu est en pause
             // Désactive les animations de fond du menu quand les paramètres sont ouverts
             shootingEffectElements.forEach(el => el.style.display = 'none');
             console.log("Affichage de l'écran des paramètres. Mode UI:", currentUIMode, "Précédent:", previousUIMode);
@@ -1686,7 +2046,9 @@
             updateKeyRemapButtons();
         }
 
-        // Fonction pour afficher le menu de pause
+        /**
+         * Affiche le menu de pause.
+         */
         function showPauseMenu() {
             previousUIMode = currentUIMode; // Sauvegarde l'état précédent (devrait être 'game' ici)
             currentUIMode = 'pauseMenu'; // Met à jour l'état de l'UI
@@ -1694,26 +2056,30 @@
             mainMenuDiv.style.display = 'none';
             settingsSection.style.display = 'none';
             gameContainer.style.display = 'none';
-            infoBox.style.display = 'block'; // Peut afficher des infos de pause ici si besoin
+            infoBox.style.display = 'none'; // La boîte d'informations n'est généralement pas nécessaire pendant la pause
             ammoDisplay.style.display = 'none'; // Cache l'affichage des munitions en pause
-            healthDisplay.style.display = 'none'; // Cache l'affichage de la vie
-            waveInfo.style.display = 'none'; // Cache les infos de manche
+            healthDisplay.style.display = 'none'; // Cache l'affichage de la vie en pause
+            waveInfo.style.display = 'none'; // Cache les infos de manche en pause
             gameOverScreen.style.display = 'none'; // Cache l'écran de fin de jeu
-            gameActive = false;
+            gameActive = false; // S'assure que la logique du jeu est en pause
             // Désactive les animations de fond du menu quand le jeu est en pause
             shootingEffectElements.forEach(el => el.style.display = 'none');
             console.log("Affichage du menu de pause. Mode UI:", currentUIMode, "Précédent:", previousUIMode);
         }
 
-        // Fonction pour cacher le menu de pause
+        /**
+         * Cache le menu de pause.
+         */
         function hidePauseMenu() {
             pauseMenu.style.display = 'none';
-            infoBox.style.display = 'none';
-            // currentUIMode sera mis à jour par pointerlockchange si le jeu reprend
+            // Le mode UI sera mis à jour par pointerlockchange si le jeu reprend
+            // Ou par showMenuScreen si l'on quitte vers le menu principal
             console.log("Menu de pause caché.");
         }
 
-        // Fonction pour afficher le modal de confirmation de quitter
+        /**
+         * Affiche le modal de confirmation de quitter.
+         */
         function showQuitConfirm() {
             previousUIMode = currentUIMode; // Sauvegarde l'état précédent (devrait être 'pauseMenu' ici)
             currentUIMode = 'quitConfirm'; // Met à jour l'état de l'UI
@@ -1722,22 +2088,25 @@
             console.log("Affichage du modal de confirmation de quitter. Mode UI:", currentUIMode, "Précédent:", previousUIMode);
         }
 
-        // Fonction pour cacher le modal de confirmation de quitter
+        /**
+         * Cache le modal de confirmation de quitter.
+         */
         function hideQuitConfirm() {
-            // currentUIMode est mis à jour par la fonction appelante (soit showPauseMenu, soit showMenuScreen)
-            // Donc ici on ne fait que cacher le modal.
             quitConfirmModal.style.display = 'none';
+            // Le mode UI est mis à jour par la fonction appelante (soit showPauseMenu, soit showMenuScreen)
             console.log("Modal de confirmation caché.");
         }
 
-        // --- Fonction centralisée pour demander le verrouillage du pointeur ---
-        function requestGamePointerLock() {
+        /**
+         * Fonction centralisée pour demander le verrouillage du pointeur pour le jeu.
+         * @param {boolean} forceGameMode Si true, force le mode UI à 'game' et masque les menus après un verrouillage réussi.
+         */
+        function requestGamePointerLock(forceGameMode = false) {
             // Si une requête est déjà en cours ou si le pointeur est déjà verrouillé par le jeu, ne rien faire
             if (isPointerLockRequested || document.pointerLockElement === gameContainer) {
                 console.log("Verrouillage du pointeur déjà demandé ou actif, saut de la nouvelle demande.");
                 // Si déjà verrouillé, mais l'état UI n'est pas 'game', alors le forcer (cas de reprise rapide)
-                if (document.pointerLockElement === gameContainer && currentUIMode !== 'game') {
-                    // C'est une reprise depuis un menu sans erreur de verrouillage
+                if (document.pointerLockElement === gameContainer && currentUIMode !== 'game' && forceGameMode) {
                     console.log("Forcing UI to game state because pointer is already locked.");
                     gameActive = true;
                     currentUIMode = 'game';
@@ -1745,12 +2114,12 @@
                     settingsSection.style.display = 'none';
                     pauseMenu.style.display = 'none';
                     quitConfirmModal.style.display = 'none';
-                    gameOverScreen.style.display = 'none'; // S'assurer que l'écran de game over est caché
+                    gameOverScreen.style.display = 'none'; 
                     gameContainer.style.display = 'block';
                     infoBox.style.display = 'none';
-                    ammoDisplay.style.display = 'block'; // Affiche l'affichage des munitions en jeu
-                    healthDisplay.style.display = 'block'; // Affiche la vie en jeu
-                    waveInfo.style.display = 'block'; // Affiche les infos de vague en jeu
+                    ammoDisplay.style.display = 'block'; 
+                    healthDisplay.style.display = 'block'; 
+                    waveInfo.style.display = 'block'; 
                 }
                 return;
             }
@@ -1768,9 +2137,13 @@
                     console.warn('Échec ou annulation de la demande de verrouillage du pointeur:', e);
                     // Si l'échec est dû à une annulation par l'utilisateur (ex: Échap), il faut revenir à l'écran précédent
                     // Sinon, c'est une erreur inattendue et on retourne au menu principal
-                    if (e.name === "SecurityError") { // Souvent l'erreur pour "utilisateur a quitté le lock"
-                        showMessage('Verrouillage de la souris annulé. Retour au menu principal.', 3000);
-                        showMenuScreen(); // Revenir au menu principal si l'utilisateur a annulé
+                    if (e.name === "SecurityError" || (e.message && e.message.includes("UserGesture"))) { // "SecurityError" ou message si user annule
+                        showMessage('Verrouillage de la souris annulé. Retour au menu précédent.', 3000);
+                        if (previousUIMode === 'pauseMenu') { // Si venait du menu pause
+                            showPauseMenu();
+                        } else { // Si venait du menu principal
+                            showMenuScreen();
+                        }
                     } else {
                         showMessage('Erreur de verrouillage de la souris. Retour au menu principal.', 3000);
                         showMenuScreen(); // Erreur inattendue
@@ -1779,7 +2152,9 @@
         }
 
 
-        // --- Fonction d'initialisation du jeu ---
+        /**
+         * Initialise le jeu : configure la scène Three.js, la caméra, le rendu, les éléments de l'interface utilisateur et les écouteurs d'événements.
+         */
         function init() {
             // Initialisation de la scène
             scene = new THREE.Scene();
@@ -1804,7 +2179,7 @@
             // Récupération des éléments UI
             messageBox = document.getElementById('message-box');
             crosshair = document.getElementById('crosshair');
-            ammoDisplay = document.getElementById('ammo-display'); // Récupération de l'affichage des munitions
+            ammoDisplay = document.getElementById('ammo-display'); 
             healthDisplay = document.getElementById('health-display');
             healthBar = document.getElementById('health-bar');
             waveInfo = document.getElementById('wave-info');
@@ -1822,9 +2197,9 @@
             // Elements de la section Paramètres
             settingsSection = document.getElementById('settings-section');
             sensitivitySlider = document.getElementById('sensitivity-slider');
-            currentSensitivityDisplay = document.getElementById('current-sensitivity').querySelector('span');
+            currentSensitivityDisplay = document.getElementById('current-sensitivity'); 
             backToMainMenuButton = document.getElementById('back-to-main-menu-button');
-            resetKeysButton = document.getElementById('reset-keys-button'); // Récupération du bouton Réinitialiser
+            resetKeysButton = document.getElementById('reset-keys-button'); 
 
             // Pause Menu Elements
             pauseMenu = document.getElementById('pause-menu');
@@ -1876,7 +2251,7 @@
             if (resumeButton) {
                 resumeButton.addEventListener('click', () => {
                     hidePauseMenu();
-                    requestGamePointerLock(); // Utilise la fonction centralisée
+                    requestGamePointerLock(true); // Utilise la fonction centralisée avec forceGameMode = true
                 });
             }
             if (pauseSettingsButton) {
@@ -1919,7 +2294,7 @@
                 // Position aléatoire initiale
                 flash.style.left = `${Math.random() * 100}vw`;
                 flash.style.top = `${Math.random() * 100}vh`;
-                // Définir les variables CSS pour l'animation
+                // Définir les variables CSS pour des positions et délais aléatoires
                 flash.style.setProperty('--rand-x', (Math.random() - 0.5) * 2); // De -1 à 1
                 flash.style.setProperty('--rand-y', (Math.random() - 0.5) * 2);
                 flash.style.setProperty('--rand-delay', `${Math.random() * 2}s`); // Délai aléatoire
@@ -1935,26 +2310,23 @@
             directionalLight.position.set(5, 10, 7);
             scene.add(directionalLight);
 
-            // Création initiale du sol et des bâtiments
+            // Création initiale du sol
             const textureLoader = new THREE.TextureLoader();
-
-            // Texture pour le sol (asphalte/débris rouillé)
-            const groundTexture = textureLoader.load('https://placehold.co/1024x1024/303030/808080.png');
+            const groundTexture = textureLoader.load('https://placehold.co/1024x1024/303030/808080.png',
+                () => {}, undefined, (err) => console.error('Erreur de chargement de la texture du sol :', err));
             groundTexture.wrapS = THREE.RepeatWrapping;
             groundTexture.wrapT = THREE.RepeatWrapping;
-            groundTexture.repeat.set(20, 20); // Répéter la texture pour couvrir une plus grande carte
+            groundTexture.repeat.set(20, 20);
 
-            // Création du sol
             const groundGeometry = new THREE.PlaneGeometry(200, 200); // Taille augmentée
             const groundMaterial = new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 0.8, metalness: 0.2 });
             const ground = new THREE.Mesh(groundGeometry, groundMaterial);
             ground.rotation.x = -Math.PI / 2; // Pivote le plan pour qu'il soit horizontal
             scene.add(ground);
-            // Le sol est aussi un objet de collision
-            collidableObjects.push(ground); 
+            collidableObjects.push(ground);
             
-            // Génère les bâtiments initiaux. Sera aussi appelée par resetGame.
-            generateInitialWorld();
+            // Génère la carte fixe de la centrale électrique.
+            generatePowerPlant();
 
             // --- Création du bras et de l'arme FPV ---
             const armMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 }); // Couleur peau/brun
@@ -2001,8 +2373,8 @@
             // Gestion du blocage du pointeur (Pointer Lock API)
             gameContainer.addEventListener('click', () => {
                 // Tenter de verrouiller le pointeur UNIQUEMENT si le jeu n'est pas actif ET que les menus ne sont pas affichés
-                if (currentUIMode === 'mainMenu') { // Ne lancer le jeu que depuis le menu principal
-                    requestGamePointerLock(); // Utilise la fonction centralisée
+                if (currentUIMode === 'mainMenu' || currentUIMode === 'pauseMenu') { // Ne lancer le jeu que depuis le menu principal ou reprendre depuis la pause
+                    requestGamePointerLock(true); // Utilise la fonction centralisée avec forceGameMode = true
                 }
             });
 
@@ -2030,12 +2402,12 @@
                     gameActive = false;
                     isPointerLockRequested = false; // Réinitialiser le drapeau ici
                     gameContainer.style.display = 'none';
-                    infoBox.style.display = 'block'; // Affiche l'info-box quand le jeu est en pause
+                    infoBox.style.display = 'block'; // Affiche l'info-box quand le jeu est en pause/déverrouillé
 
                     // Revenir à l'écran approprié en fonction de l'état précédent
                     if (currentUIMode === 'game') { // Si on quitte le jeu (Ex: touche Échap), aller au menu pause
                         showPauseMenu();
-                    } else if (currentUIMode === 'pauseMenu') { // Si on quitte le pause menu (Ex: annulation de reprise), rester au pause menu
+                    } else if (currentUIMode === 'pauseMenu') { // Si on quitte le menu pause (Ex: annulation de reprise), rester au menu pause
                         showPauseMenu();
                     } else if (currentUIMode === 'settings') { // Si on quitte les paramètres
                         // Si les paramètres ont été ouverts depuis la pause, revenir à la pause
@@ -2066,7 +2438,7 @@
                 resetGame(); // Réinitialise le jeu et démarre une nouvelle partie
                 mainMenuDiv.style.display = 'none'; // Cache le menu principal immédiatement
                 gameContainer.style.display = 'block'; // Affiche le conteneur du jeu
-                requestGamePointerLock(); // Demande le verrouillage du pointeur
+                requestGamePointerLock(true); // Demande le verrouillage du pointeur et force le mode game
                 updateAmmoDisplay(); // Met à jour l'affichage des munitions au démarrage du jeu
                 updateHealthDisplay(); // Met à jour l'affichage de la vie au démarrage du jeu
                 updateWaveInfoDisplay(); // Met à jour l'affichage des infos de vague
