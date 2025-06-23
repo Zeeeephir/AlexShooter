@@ -303,9 +303,9 @@
 
         // État du jeu
         let gameActive = false, playerVerticalVelocity = 0, canJump = true;
-        const moveSpeed = 3.0; // Vitesse de déplacement du joueur (ajustée)
-        const gravity = -0.005; // Force de gravité (ajustée, indépendante du deltaTime)
-        const jumpStrength = 0.15; // Force de saut (ajustée)
+        const moveSpeed = 2.0; // Vitesse de déplacement du joueur (ajustée)
+        const gravity = -0.01; // Force de gravité (ajustée)
+        const jumpStrength = 0.1; // Force de saut (ajustée)
         const playerCollisionRadius = 0.5;
         const playerStepHeight = 0.5; // Hauteur maximale que le joueur peut monter automatiquement
         let playerHealth = 100, maxPlayerHealth = 100, playerDamageCooldown = 0;
@@ -323,7 +323,7 @@
         const timeBetweenWaves = 3000;
 
         // Propriétés d'Alex (ennemi)
-        const ALEX_BASE_SPEED = 1.0;
+        const ALEX_BASE_SPEED = 1.5; // Vitesse de base des Alex (ajustée)
         const ALEX_BASE_HEALTH = 100;
         const ALEX_BASE_DAMAGE = 10;
         const ALEX_ATTACK_COOLDOWN = 1500;
@@ -1223,6 +1223,9 @@
 
                 if (!landedOnGround) {
                     canJump = false; // Ne peut pas sauter si pas fermement au sol
+                    if (playerVerticalVelocity === 0) { // Si la vitesse est nulle mais pas sur la surface, commencer à tomber (ex: chute d'une plateforme)
+                        playerVerticalVelocity = gravity;
+                    }
                 }
 
                 // Restriction absolue pour empêcher de tomber à travers le point le plus bas du monde (y=0 pour le sol)
