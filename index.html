@@ -303,27 +303,28 @@
 
         // État du jeu
         let gameActive = false, playerVerticalVelocity = 0, canJump = true;
-        const moveSpeed = 2.0; // Vitesse de déplacement du joueur (ajustée)
-        const gravity = -0.01; // Force de gravité (ajustée)
-        const jumpStrength = 0.1; // Force de saut (ajustée)
-        const playerCollisionRadius = 0.5;
+        const moveSpeed = 5.0; // Vitesse de déplacement du joueur (ajustée pour deltaTime)
+        const gravity = -9.8; // Force de gravité (m/s^2)
+        const jumpStrength = 5.0; // Force de saut (impulsion initiale)
+        const playerCollisionRadius = 0.5; // Rayon de collision du joueur
+        const playerHeight = 1.7; // Hauteur du joueur (pour le calcul des pieds)
         const playerStepHeight = 0.5; // Hauteur maximale que le joueur peut monter automatiquement
         let playerHealth = 100, maxPlayerHealth = 100, playerDamageCooldown = 0;
-        const playerDamageCooldownDuration = 200;
+        const playerDamageCooldownDuration = 200; // Durée d'invincibilité après dégâts
         let currentAmmo = 30, magazineCapacity = 30, totalReserveAmmo = 90, isReloading = false;
-        const reloadDuration = 2000;
+        const reloadDuration = 2000; // Durée du rechargement
         let knifeCooldown = 1000, isKnifeReady = true;
         const knifeRange = 2.5, knifeDamage = 20, knifeAttackDuration = 200;
-        let knifeVisual;
-        const SHOOT_RANGE = 100;
+        let knifeVisual; // Objet 3D du couteau
+        const SHOOT_RANGE = 100; // Portée de tir
 
         // Gestion des vagues
         let currentWave = 0, alexesKilledThisWave = 0, totalAlexesKilledOverall = 0;
         let alexesInCurrentWave = [], waveSpawnTimer = null;
-        const timeBetweenWaves = 3000;
+        const timeBetweenWaves = 3000; // Temps entre les vagues
 
         // Propriétés d'Alex (ennemi)
-        const ALEX_BASE_SPEED = 1.5; // Vitesse de base des Alex (ajustée)
+        const ALEX_BASE_SPEED = 2.0; // Vitesse de base des Alex (ajustée pour deltaTime)
         const ALEX_BASE_HEALTH = 100;
         const ALEX_BASE_DAMAGE = 10;
         const ALEX_ATTACK_COOLDOWN = 1500;
@@ -343,7 +344,12 @@
         let isRemappingKey = false, currentRemapButton = null, currentRemapAction = null;
         const NUM_SHOOTING_EFFECTS = 5;
         let shootingEffectElements = [];
-        let lastFrameTime = performance.now();
+        let lastFrameTime = performance.now(); // Pour le calcul du deltaTime
+
+        // Global variables for map dimensions (moved from generatePowerPlant scope)
+        let mainHallX, mainHallZ, mainHallWidth, mainHallDepth, mainHallHeight, wallThickness;
+        let boilerHallX, boilerHallZ, boilerWidth, boilerDepth;
+
 
         // --- Fonctions d'aide globales ---
 
@@ -498,6 +504,7 @@
                 newPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, newPitch));
                 camera.rotation.x = newPitch;
                 if (armMesh) {
+                    // Adjust arm/weapon position based on camera pitch for a more natural feel
                     armMesh.position.z = -1.0 + Math.sin(newPitch * 0.5) * 0.2;
                     armMesh.position.y = -0.7 - Math.abs(Math.sin(newPitch * 0.5)) * 0.1;
                     armMesh.rotation.x = -Math.PI / 6 + (newPitch * 0.2);
@@ -547,6 +554,7 @@
             currentAmmo--; updateAmmoDisplay();
             raycaster.setFromCamera(new THREE.Vector2(0,0), camera); raycaster.far = SHOOT_RANGE;
 
+            // Debug ray line visualization
             if (debugRayLine) {
                 const rayDirection = new THREE.Vector3(); camera.getWorldDirection(rayDirection);
                 debugRayLine.geometry.attributes.position.array[0] = 0; debugRayLine.geometry.attributes.position.array[1] = 0;
@@ -572,14 +580,17 @@
                         if (hitObject.userData && hitObject.userData.alexInstance) { hitAlex = hitObject.userData.alexInstance; }
                         hitObject = hitObject.parent;
                     }
-                    if (hitAlex) { hitAlex.takeDamage(10); }
+                    if (hitAlex) { hitAlex.takeDamage(10); } // Apply damage to Alex
                 }
             }
         }
 
         /** Gère l'action de saut du joueur. */
         function performJump() {
-            if (canJump) { playerVerticalVelocity = jumpStrength; canJump = false; }
+            if (canJump) {
+                playerVerticalVelocity = jumpStrength; // Apply immediate upward velocity
+                canJump = false;
+            }
         }
 
         /** Gère l'attaque au couteau du joueur. */
@@ -587,44 +598,59 @@
             if (!isKnifeReady) return;
             isKnifeReady = false;
 
-            const bladeGeometry = new THREE.BoxGeometry(0.05, 0.5, 0.05);
-            const handleGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.2, 8);
-            const knifeMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 });
-            knifeVisual = new THREE.Group();
-            const blade = new THREE.Mesh(bladeGeometry, knifeMaterial);
-            const handle = new THREE.Mesh(handleGeometry, new THREE.MeshStandardMaterial({ color: 0x333333 }));
-            blade.position.y = 0.25; handle.position.y = -0.1;
-            knifeVisual.add(blade); knifeVisual.add(handle);
-            knifeVisual.position.set(0.6, -0.6, -1.0); knifeVisual.rotation.z = Math.PI / 2;
-            camera.add(knifeVisual);
+            // Create knife visual if it doesn't exist or was removed
+            if (!knifeVisual) {
+                const bladeGeometry = new THREE.BoxGeometry(0.05, 0.5, 0.05);
+                const handleGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.2, 8);
+                const knifeMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 });
+                knifeVisual = new THREE.Group();
+                const blade = new THREE.Mesh(bladeGeometry, knifeMaterial);
+                const handle = new THREE.Mesh(handleGeometry, new THREE.MeshStandardMaterial({ color: 0x333333 }));
+                blade.position.y = 0.25; handle.position.y = -0.1;
+                knifeVisual.add(blade); knifeVisual.add(handle);
+                knifeVisual.position.set(0.6, -0.6, -1.0); // Initial position relative to camera
+                knifeVisual.rotation.z = Math.PI / 2; // Initial rotation
+                camera.add(knifeVisual);
+            } else {
+                // If it exists but was removed, re-add it
+                if (!knifeVisual.parent) camera.add(knifeVisual);
+            }
+
 
             const initialPos = new THREE.Vector3(0.6, -0.6, -1.0);
             const swingPos = new THREE.Vector3(0.8, -0.4, -1.2);
             const swingRotation = new THREE.Euler(Math.PI / 4, Math.PI / 8, Math.PI / 2);
             let startTime = performance.now();
+
             function animateKnifeSwing() {
-                if (!knifeVisual || !gameActive) return;
+                if (!knifeVisual || !gameActive) { // Ensure knife visual exists and game is active
+                    if (knifeVisual && knifeVisual.parent) camera.remove(knifeVisual);
+                    return;
+                }
                 const elapsed = performance.now() - startTime;
                 const progress = elapsed / knifeAttackDuration;
-                if (progress < 0.5) {
+
+                if (progress < 0.5) { // Swing forward
                     knifeVisual.position.lerpVectors(initialPos, swingPos, progress * 2);
                     knifeVisual.rotation.x = THREE.MathUtils.lerp(-Math.PI / 6 + (camera.rotation.x * 0.2), swingRotation.x, progress * 2);
                     knifeVisual.rotation.y = THREE.MathUtils.lerp(Math.PI / 8, swingRotation.y, progress * 2);
                     knifeVisual.rotation.z = THREE.MathUtils.lerp(Math.PI / 2, swingRotation.z, progress * 2);
-                } else if (progress < 1.0) {
+                } else if (progress < 1.0) { // Swing back
                     knifeVisual.position.lerpVectors(swingPos, initialPos, (progress - 0.5) * 2);
                     knifeVisual.rotation.x = THREE.MathUtils.lerp(swingRotation.x, -Math.PI / 6 + (camera.rotation.x * 0.2), (progress - 0.5) * 2);
                     knifeVisual.rotation.y = THREE.MathUtils.lerp(swingRotation.y, Math.PI / 8, (progress - 0.5) * 2);
                     knifeVisual.rotation.z = THREE.MathUtils.lerp(Math.PI / 2, swingRotation.z, (progress - 0.5) * 2);
-                } else {
-                    if (knifeVisual.parent) { camera.remove(knifeVisual); } return;
+                } else { // Animation complete
+                    if (knifeVisual.parent) { camera.remove(knifeVisual); } // Remove knife visual after animation
+                    return;
                 }
                 requestAnimationFrame(animateKnifeSwing);
             }
             animateKnifeSwing();
 
+            // Perform raycast for knife damage
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); raycaster.far = knifeRange;
-            if (debugRayLine) {
+            if (debugRayLine) { // Debug visualization for knife raycast
                 const rayDirection = new THREE.Vector3(); camera.getWorldDirection(rayDirection);
                 debugRayLine.geometry.attributes.position.array[0] = 0; debugRayLine.geometry.attributes.position.array[1] = 0;
                 debugRayLine.geometry.attributes.position.array[2] = 0;
@@ -637,7 +663,7 @@
             const alexMeshes = alexes.map(a => a.mesh);
             const intersects = raycaster.intersectObjects(alexMeshes, true);
             if (intersects.length > 0) {
-                 const hitAlexIntersection = intersects.find(intersect => {
+                const hitAlexIntersection = intersects.find(intersect => {
                     let obj = intersect.object;
                     while (obj) { if (obj.userData && obj.userData.alexInstance) { return true; } obj = obj.parent; }
                     return false;
@@ -668,20 +694,20 @@
             const reloadUpDuration = reloadDuration * 0.7;
 
             function animateReload() {
-                if (!armMesh || !gameActive) return;
+                if (!armMesh || !gameActive) return; // Stop animation if armMesh is gone or game is not active
                 const elapsed = performance.now() - startTime; let progress = 0;
                 if (elapsed < reloadDownDuration) {
                     progress = elapsed / reloadDownDuration;
                     armMesh.position.lerpVectors(initialArmPos, reloadArmPos, progress);
                     armMesh.rotation.set(THREE.MathUtils.lerp(initialArmRot.x, reloadArmRot.x, progress),
-                                        THREE.MathUtils.lerp(initialArmRot.y, reloadArmRot.y, progress),
-                                        THREE.MathUtils.lerp(initialArmRot.z, reloadArmRot.z, progress));
+                                         THREE.MathUtils.lerp(initialArmRot.y, reloadArmRot.y, progress),
+                                         THREE.MathUtils.lerp(initialArmRot.z, reloadArmRot.z, progress));
                 } else if (elapsed < reloadDuration) {
                     progress = (elapsed - reloadDownDuration) / reloadUpDuration;
                     armMesh.position.lerpVectors(reloadArmPos, initialArmPos, progress);
                     armMesh.rotation.set(THREE.MathUtils.lerp(reloadArmRot.x, initialArmRot.x, progress),
-                                        THREE.MathUtils.lerp(reloadArmRot.y, initialArmRot.y, progress),
-                                        THREE.MathUtils.lerp(reloadArmRot.z, initialArmRot.z, progress));
+                                         THREE.MathUtils.lerp(reloadArmRot.y, initialArmRot.y, progress),
+                                         THREE.MathUtils.lerp(reloadArmRot.z, initialArmRot.z, progress));
                 } else {
                     armMesh.position.copy(initialArmPos); armMesh.rotation.copy(initialArmRot);
                     const bulletsToReload = magazineCapacity - currentAmmo;
@@ -703,7 +729,7 @@
             const healthPercentage = (playerHealth / maxPlayerHealth) * 100;
             healthBar.style.width = `${healthPercentage}%`;
             healthBar.textContent = `${Math.round(playerHealth)} HP`;
-            healthBar.style.backgroundColor = '#e53e3e';
+            healthBar.style.backgroundColor = '#e53e3e'; // Red color for health bar
         }
 
         /** Classe pour créer un Alex (ennemi). */
@@ -738,7 +764,7 @@
                 const legMat = new THREE.MeshStandardMaterial({ color: 0x228B22, roughness: 0.6, metalness: 0.1 });
                 const leftLeg = new THREE.Mesh(legGeo, legMat); leftLeg.position.set(-0.25, -0.5, 0); this.mesh.add(leftLeg);
                 const rightLeg = new THREE.Mesh(legGeo, legMat); rightLeg.position.set(0.25, -0.5, 0); this.mesh.add(rightLeg);
-                this.mesh.position.set(x, 1.0, z); scene.add(this.mesh);
+                this.mesh.position.set(x, 1.0, z); scene.add(this.mesh); // Alex's center is at 1.0 (total height 2.0)
 
                 this.healthCanvas = document.createElement('canvas');
                 this.healthCanvas.width = 128; this.healthCanvas.height = 32;
@@ -747,7 +773,7 @@
                 this.healthTexture.minFilter = THREE.LinearFilter;
                 this.healthSpriteMaterial = new THREE.SpriteMaterial({ map: this.healthTexture });
                 this.healthSprite = new THREE.Sprite(this.healthSpriteMaterial);
-                this.healthSprite.scale.set(2, 0.5, 1); this.healthSprite.position.y = 2.0;
+                this.healthSprite.scale.set(2, 0.5, 1); this.healthSprite.position.y = 2.0; // Position above Alex's head
                 this.mesh.add(this.healthSprite); this.updateHealthSprite();
             }
 
@@ -761,55 +787,76 @@
                 const playerPos = this.player.position;
                 const alexPos = this.mesh.position;
                 let directionToPlayer = new THREE.Vector3().subVectors(playerPos, alexPos);
-                directionToPlayer.y = 0; directionToPlayer.normalize();
+                directionToPlayer.y = 0; // Ignore Y-axis for horizontal movement
+                directionToPlayer.normalize();
 
                 const currentDistanceToPlayer = alexPos.distanceTo(playerPos);
-                let desiredMovementVector = directionToPlayer.clone().multiplyScalar(this.speed * deltaTime);
+                const moveAmount = this.speed * deltaTime;
+                let desiredMovementVector = directionToPlayer.clone().multiplyScalar(moveAmount);
                 const nextAlexPosition = alexPos.clone().add(desiredMovementVector);
 
-                let collisionDetected = false;
+                let collisionWithObstacle = false;
+                let obstacleNormal = new THREE.Vector3();
+
+                // Check collision with collidableObjects (excluding ground)
                 for (const obj of collidableObjects) {
                     if (obj === ground) continue;
+
+                    // Create a bounding box for Alex at the *next* intended position
                     const alexBoundingBox = new THREE.Box3().setFromCenterAndSize(
                         nextAlexPosition, new THREE.Vector3(ALEX_COLLISION_RADIUS * 2, 2, ALEX_COLLISION_RADIUS * 2)
                     );
-                    if (!obj.geometry.boundingBox) { obj.geometry.computeBoundingBox(); }
+
+                    // Ensure the object has a bounding box
+                    if (!obj.geometry.boundingBox) {
+                        obj.geometry.computeBoundingBox();
+                    }
                     const objBox = obj.geometry.boundingBox.clone().applyMatrix4(obj.matrixWorld);
+
                     if (alexBoundingBox.intersectsBox(objBox)) {
-                        collisionDetected = true;
-                        const pushOutVector = alexBoundingBox.getCenter(new THREE.Vector3()).sub(objBox.getCenter(new THREE.Vector3()));
-                        pushOutVector.y = 0; pushOutVector.normalize();
-                        this.mesh.position.add(pushOutVector.multiplyScalar(0.1));
-                        const turnAngle = (Math.random() > 0.5 ? 1 : -1) * Math.PI / 8;
-                        directionToPlayer.applyAxisAngle(new THREE.Vector3(0, 1, 0), turnAngle);
-                        desiredMovementVector = directionToPlayer.clone().multiplyScalar(this.speed * deltaTime);
-                        break;
+                        collisionWithObstacle = true;
+                        // Calculate a push-out vector to resolve the collision
+                        const overlapVector = alexBoundingBox.getCenter(new THREE.Vector3()).sub(objBox.getCenter(new THREE.Vector3()));
+                        overlapVector.y = 0; // Only consider horizontal push
+                        overlapVector.normalize();
+                        obstacleNormal.copy(overlapVector); // Store normal for sliding
+                        break; // Found a collision, no need to check others for this Alex
                     }
                 }
 
-                if (!collisionDetected && (currentDistanceToPlayer > ALEX_ATTACK_RANGE_THRESHOLD || currentDistanceToPlayer > playerCollisionRadius + ALEX_COLLISION_RADIUS + 0.1)) {
+                if (collisionWithObstacle) {
+                    // Try to slide along the obstacle
+                    // Project the desired movement vector onto the plane perpendicular to the obstacle normal
+                    desiredMovementVector.projectOnVector(obstacleNormal.negate());
+                    this.mesh.position.add(desiredMovementVector); // Move Alex
+                } else if (currentDistanceToPlayer > ALEX_ATTACK_RANGE_THRESHOLD) {
+                    // If no obstacle and not close enough to attack, move towards player
                     this.mesh.position.add(desiredMovementVector);
                 }
-                
-                if (currentDistanceToPlayer <= ALEX_ATTACK_RANGE_THRESHOLD) { this.attackPlayer(); }
 
+                // Alex always faces the player
                 const angle = Math.atan2(directionToPlayer.x, directionToPlayer.z);
                 this.mesh.rotation.y = angle;
-                
-                const groundRaycaster = new THREE.Raycaster(
-                    alexPos.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(0, -1, 0), 0, 5
+
+                // Ground alignment for Alex
+                const alexGroundRaycaster = new THREE.Raycaster(
+                    this.mesh.position.clone().add(new THREE.Vector3(0, 1.0, 0)), // Start ray at Alex's approximate head level
+                    new THREE.Vector3(0, -1, 0), // Downwards
+                    0, 2.0 // Check up to 2 units below Alex's current Y
                 );
-                const groundIntersects = groundRaycaster.intersectObjects(collidableObjects, true);
-                if (groundIntersects.length > 0) {
-                    const targetY = groundIntersects[0].point.y + 1.0;
-                    if (targetY > this.mesh.position.y && targetY - this.mesh.position.y < 1.0) {
-                        this.mesh.position.y = targetY;
-                    } else if (targetY < this.mesh.position.y) {
-                         this.mesh.position.y = targetY;
-                    }
+                const alexGroundIntersects = alexGroundRaycaster.intersectObjects(collidableObjects, true);
+
+                if (alexGroundIntersects.length > 0) {
+                    const groundPoint = alexGroundIntersects[0].point;
+                    this.mesh.position.y = groundPoint.y + 1.0; // Alex's feet should be at ground level (Alex's height is 2.0, so center is 1.0 above ground)
                 } else {
+                    // If no ground detected, assume default ground level or fall (if map allows)
+                    // For this map, assume ground is always at Y=0, so Alex's center should be at Y=1.0
                     this.mesh.position.y = 1.0;
                 }
+
+                // Alex attack logic
+                if (currentDistanceToPlayer <= ALEX_ATTACK_RANGE_THRESHOLD) { this.attackPlayer(); }
             }
 
             /**
@@ -818,6 +865,7 @@
              */
             takeDamage(amount) {
                 this.health -= amount; if (this.health < 0) this.health = 0;
+                // Visual feedback for damage (flash red)
                 this.mesh.traverse((object) => {
                     if (object.isMesh) {
                         object.material.emissive.setHex(0xFF0000);
@@ -833,7 +881,7 @@
                 const canvas = this.healthCanvas; const ctx = this.healthContext;
                 const width = canvas.width; const height = canvas.height;
                 ctx.clearRect(0, 0, width, height);
-                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, width, height);
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, width, height); // Changed healthWidth to width
                 const healthWidth = (this.health / this.maxHealth) * width;
                 ctx.fillStyle = '#e53e3e'; ctx.fillRect(0, 0, healthWidth, height);
                 ctx.fillStyle = 'white'; ctx.font = 'bold 20px Inter'; ctx.textAlign = 'center';
@@ -845,10 +893,10 @@
             attackPlayer() {
                 const currentTime = performance.now();
                 if (currentTime - this.lastAttackTime >= this.attackCooldown) {
-                    if (playerDamageCooldown <= 0) {
+                    if (playerDamageCooldown <= 0) { // Check player invincibility cooldown
                         playerHealth -= this.damage;
                         updateHealthDisplay();
-                        playerDamageCooldown = playerDamageCooldownDuration;
+                        playerDamageCooldown = playerDamageCooldownDuration; // Reset player damage cooldown
                     }
                     this.lastAttackTime = currentTime;
                 }
@@ -857,37 +905,80 @@
             /** Gère la mort d'Alex. */
             die() {
                 this.scene.remove(this.mesh);
+                // Dispose of Alex's mesh components to prevent memory leaks
+                this.mesh.traverse((object) => {
+                    if (object.isMesh) {
+                        if (object.geometry) object.geometry.dispose();
+                        if (object.material) {
+                            if (Array.isArray(object.material)) {
+                                object.material.forEach(m => m.dispose());
+                            } else {
+                                object.material.dispose();
+                            }
+                        }
+                    }
+                });
+
                 if (this.healthSprite) {
-                    this.mesh.remove(this.healthSprite); this.healthSprite.material.dispose();
-                    this.healthSprite.geometry.dispose(); if (this.healthTexture) this.healthTexture.dispose();
+                    this.mesh.remove(this.healthSprite);
+                    if (this.healthSprite.material) this.healthSprite.material.dispose();
+                    if (this.healthSprite.geometry) this.healthSprite.geometry.dispose();
+                    if (this.healthTexture) this.healthTexture.dispose();
                 }
-                alexes = alexes.filter(a => a !== this);
+                alexes = alexes.filter(a => a !== this); // Remove from active Alexes list
                 alexesKilledThisWave++; totalAlexesKilledOverall++; updateWaveInfoDisplay();
                 if (alexes.length === 0) {
                     showMessage(`Manche ${currentWave} terminée ! Préparation de la prochaine vague...`, timeBetweenWaves);
-                    waveSpawnTimer = setTimeout(startNextWave, timeBetweenWaves);
+                    waveSpawnTimer = setTimeout(startNextWave, timeBetweenWaves); // Start next wave after delay
                 }
             }
         }
 
         /** Réinitialise l'état du jeu pour une nouvelle partie. */
         function resetGame() {
+            // Dispose of all existing Alexes
             alexes.forEach(alex => {
                 scene.remove(alex.mesh);
+                alex.mesh.traverse((object) => {
+                    if (object.isMesh) {
+                        if (object.geometry) object.geometry.dispose();
+                        if (object.material) {
+                            if (Array.isArray(object.material)) {
+                                object.material.forEach(m => m.dispose());
+                            } else {
+                                object.material.dispose();
+                            }
+                        }
+                    }
+                });
                 if (alex.healthSprite) {
-                    alex.mesh.remove(alex.healthSprite); alex.healthSprite.material.dispose();
-                    alex.healthSprite.geometry.dispose(); if (alex.healthTexture) alex.healthTexture.dispose();
+                    alex.mesh.remove(alex.healthSprite);
+                    if (alex.healthSprite.material) alex.healthSprite.material.dispose();
+                    if (alex.healthSprite.geometry) alex.healthSprite.geometry.dispose();
+                    if (alex.healthTexture) alex.healthTexture.dispose();
                 }
             });
-            alexes = []; playerHealth = maxPlayerHealth; currentAmmo = magazineCapacity;
+
+            alexes = []; // Clear Alexes array
+            playerHealth = maxPlayerHealth; currentAmmo = magazineCapacity;
             totalReserveAmmo = 90; isReloading = false; isKnifeReady = true; canJump = true;
             playerVerticalVelocity = 0; playerDamageCooldown = 0; currentWave = 0;
             alexesKilledThisWave = 0; totalAlexesKilledOverall = 0;
-            playerContainer.position.set(0, 1.7, 0); // Position de départ ajustée au sol
-            camera.rotation.set(0, 0, 0);
+
+            playerContainer.position.set(0, playerHeight, 0); // Player starting position (at playerHeight above ground Y=0)
+            camera.rotation.set(0, 0, 0); // Reset camera rotation
+
             updateAmmoDisplay(); updateHealthDisplay(); updateWaveInfoDisplay();
+
+            // Reset weapon/arm position
             if (armMesh) { armMesh.position.set(0.5, -0.7, -1.0); armMesh.rotation.x = -Math.PI / 6; armMesh.rotation.y = Math.PI / 8; }
+            // Remove knife visual if it exists
             if (knifeVisual && knifeVisual.parent) { camera.remove(knifeVisual); knifeVisual = null; }
+
+            // Clear any pending wave timers
+            if (waveSpawnTimer) { clearTimeout(waveSpawnTimer); waveSpawnTimer = null; }
+
+            // Start the first wave
             startNextWave();
         }
 
@@ -905,7 +996,7 @@
             const geometry = new THREE.BoxGeometry(width, height, depth);
             const mesh = new THREE.Mesh(geometry, material);
             mesh.position.set(x, y, z);
-            mesh.geometry.computeBoundingBox();
+            mesh.geometry.computeBoundingBox(); // Compute bounding box for collision detection
             scene.add(mesh);
             collidableObjects.push(mesh);
             return mesh;
@@ -913,6 +1004,7 @@
 
         /** Génère la carte fixe de la centrale électrique. */
         function generatePowerPlant() {
+            // Dispose of existing collidable objects before generating new ones
             collidableObjects.forEach(obj => {
                 if (obj.parent) scene.remove(obj);
                 if (obj.geometry) obj.geometry.dispose();
@@ -921,7 +1013,7 @@
                     else { obj.material.dispose(); }
                 }
             });
-            collidableObjects = [];
+            collidableObjects = []; // Clear the array
 
             const textureLoader = new THREE.TextureLoader();
             const wallTexture = textureLoader.load('https://placehold.co/512x512/4A5568/CBD5E0.png');
@@ -935,90 +1027,101 @@
             const metalMaterial = new THREE.MeshStandardMaterial({ map: metalTexture, roughness: 0.3, metalness: 0.7 });
             const floorMaterial = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.8 });
             
+            // Ground plane
             const groundGeometry = new THREE.PlaneGeometry(200, 200);
             ground = new THREE.Mesh(groundGeometry, floorMaterial);
             ground.rotation.x = -Math.PI / 2;
-            scene.add(ground); collidableObjects.push(ground);
+            scene.add(ground); collidableObjects.push(ground); // Add ground to collidable objects
 
             // --- Bâtiment principal (Salle des turbines) ---
-            const mainHallX = 0, mainHallZ = 0, mainHallWidth = 60, mainHallDepth = 40, mainHallHeight = 15;
-            const wallThickness = 1;
+            mainHallX = 0; mainHallZ = 0; mainHallWidth = 60; mainHallDepth = 40; mainHallHeight = 15;
+            wallThickness = 1;
 
-            createBlock(wallThickness, mainHallHeight, mainHallDepth, concreteMaterial, mainHallX - mainHallWidth / 2 - wallThickness / 2, mainHallHeight / 2, mainHallZ);
-            createBlock(wallThickness, mainHallHeight, mainHallDepth, concreteMaterial, mainHallX + mainHallWidth / 2 + wallThickness / 2, mainHallHeight / 2, mainHallZ);
-            createBlock(mainHallWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX, mainHallHeight / 2, mainHallZ - mainHallDepth / 2 - wallThickness / 2);
+            // Walls
+            createBlock(wallThickness, mainHallHeight, mainHallDepth, concreteMaterial, mainHallX - mainHallWidth / 2 - wallThickness / 2, mainHallHeight / 2, mainHallZ); // Left wall
+            createBlock(wallThickness, mainHallHeight, mainHallDepth, concreteMaterial, mainHallX + mainHallWidth / 2 + wallThickness / 2, mainHallHeight / 2, mainHallZ); // Right wall
+            createBlock(mainHallWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX, mainHallHeight / 2, mainHallZ - mainHallDepth / 2 - wallThickness / 2); // Back wall
 
+            // Front wall with openings (simplified)
             const entranceWidth = 10; const gap = 5;
-            const totalEntranceZoneWidth = (entranceWidth * 3) + (gap * 2);
-            const startX = mainHallX - totalEntranceZoneWidth / 2;
-            const segmentWidth = (mainHallWidth - totalEntranceZoneWidth) / 2;
-            createBlock(segmentWidth, mainHallHeight, wallThickness, concreteMaterial, startX - segmentWidth / 2, mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
-            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, startX + entranceWidth/2, mainHallHeight/2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
-            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, startX + entranceWidth/2 + entranceWidth + gap, mainHallHeight/2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
-            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, startX + entranceWidth/2 + (entranceWidth + gap)*2, mainHallHeight/2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
-            createBlock(segmentWidth, mainHallHeight, wallThickness, concreteMaterial, startX + totalEntranceZoneWidth + segmentWidth / 2, mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
+            const totalEntranceZoneWidth = (entranceWidth * 3) + (gap * 2); // Total width of the three segments and two gaps
+            const segmentWidth = (mainHallWidth - totalEntranceZoneWidth) / 2; // Remaining width for side segments
+            
+            // Left segment of front wall
+            createBlock(segmentWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX - mainHallWidth / 2 + segmentWidth / 2, mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
+            // Three pillars/segments for entrance
+            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX - totalEntranceZoneWidth / 2 + entranceWidth / 2, mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
+            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX - totalEntranceZoneWidth / 2 + entranceWidth / 2 + entranceWidth + gap, mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
+            createBlock(entranceWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX - totalEntranceZoneWidth / 2 + entranceWidth / 2 + (entranceWidth + gap) * 2, mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
+            // Right segment of front wall
+            createBlock(segmentWidth, mainHallHeight, wallThickness, concreteMaterial, mainHallX + mainHallWidth / 2 - segmentWidth / 2, mainHallHeight / 2, mainHallZ + mainHallDepth / 2 + wallThickness / 2);
 
+
+            // Ceiling
             createBlock(mainHallWidth + wallThickness * 2, wallThickness, mainHallDepth + wallThickness * 2, concreteMaterial, mainHallX, mainHallHeight + wallThickness / 2, mainHallZ);
 
+            // Turbines
             const turbineY = 2;
             for (let i = -1; i <= 1; i++) {
                 const turbine = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 10, 32), metalMaterial);
-                turbine.rotation.z = Math.PI / 2;
+                turbine.rotation.z = Math.PI / 2; // Rotate to be horizontal
                 turbine.position.set(mainHallX + i * 15, turbineY + turbine.geometry.parameters.height / 2, mainHallZ - 10);
                 scene.add(turbine); collidableObjects.push(turbine);
             }
-            createBlock(2, 2, 8, metalMaterial, mainHallX - 20, turbineY + 1, mainHallZ + 5);
-            createBlock(2, 2, 8, metalMaterial, mainHallX + 20, turbineY + 1, mainHallZ + 5);
+            // Additional structures in main hall
+            createBlock(2, 4, 2, metalMaterial, mainHallX + 10, 2, mainHallZ + 15);
+            createBlock(2, 4, 2, metalMaterial, mainHallX - 10, 2, mainHallZ + 15);
 
             // --- Bâtiment de la chaudière ---
-            const boilerHallX = mainHallX + mainHallWidth / 2 + wallThickness + 30; // Plus éloigné
-            const boilerHallZ = mainHallZ;
-            const boilerWidth = 30; // Plus large
-            const boilerDepth = 30; // Plus profond
-            const floorHeight = 5; // Hauteur de chaque étage
+            boilerHallX = mainHallX + mainHallWidth / 2 + wallThickness + 30; // Further away
+            boilerHallZ = mainHallZ;
+            boilerWidth = 30; // Wider
+            boilerDepth = 30; // Deeper
+            const floorHeight = 5; // Height of each floor
             const numBoilerFloors = 6;
             const totalBoilerHeight = floorHeight * numBoilerFloors;
 
-            // Coque du bâtiment de la chaudière
-            createBlock(boilerWidth + wallThickness * 2, totalBoilerHeight + wallThickness * 2, boilerDepth + wallThickness * 2, concreteMaterial, boilerHallX, (totalBoilerHeight / 2) + wallThickness, boilerHallZ); // Coque extérieure sur toute la hauteur
-            // Étages internes
-            for (let i = 1; i < numBoilerFloors; i++) { // Commence au premier étage (i=1) jusqu'au 5ème (i=numBoilerFloors-1)
+            // Boiler building shell (walls and roof)
+            createBlock(boilerWidth + wallThickness * 2, totalBoilerHeight + wallThickness * 2, boilerDepth + wallThickness * 2, concreteMaterial, boilerHallX, (totalBoilerHeight / 2) + wallThickness, boilerHallZ); // Outer shell for full height
+            
+            // Internal floors
+            for (let i = 1; i < numBoilerFloors; i++) { // Start from first floor (i=1) up to 5th (i=numBoilerFloors-1)
                 createBlock(boilerWidth - wallThickness * 2, wallThickness, boilerDepth - wallThickness * 2, floorMaterial, boilerHallX, (i * floorHeight) + wallThickness / 2, boilerHallZ);
             }
             
-            // Grande chaudière cylindrique au centre
-            const mainBoiler = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, totalBoilerHeight + 2, 32), metalMaterial); // La rendre légèrement plus grande
+            // Large cylindrical boiler in the center
+            const mainBoiler = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, totalBoilerHeight + 2, 32), metalMaterial); // Make it slightly taller
             mainBoiler.position.set(boilerHallX, (totalBoilerHeight / 2) + 1, boilerHallZ);
             scene.add(mainBoiler); collidableObjects.push(mainBoiler);
 
-            // Escalier repensé (en spirale autour de la chaudière, sans chevauchement)
-            const stairRadius = 10; // Rayon à partir du centre de la chaudière
+            // Redesigned staircase (spiral around the boiler, no overlap)
+            const stairRadius = 10; // Radius from the boiler center
             const stairWidth = 3;
             const stairDepth = 5;
             const stepsPerFloor = 5;
             const totalSteps = numBoilerFloors * stepsPerFloor;
-            const anglePerStep = (Math.PI * 2) / stepsPerFloor; // Cercle complet par étage (spirale simplifiée)
+            const anglePerStep = (Math.PI * 2) / stepsPerFloor; // Full circle per floor (simplified spiral)
 
             for (let i = 0; i < totalSteps; i++) {
                 const currentFloor = Math.floor(i / stepsPerFloor);
                 const stepAngle = i * anglePerStep;
-                const stepY = (currentFloor * floorHeight) + ((i % stepsPerFloor) * (floorHeight / stepsPerFloor)) + (wallThickness / 2); // Montée progressive
+                // Corrected: stepsPerStep was a typo, should be stepsPerFloor
+                const stepY = (currentFloor * floorHeight) + ((i % stepsPerFloor) * (floorHeight / stepsPerFloor)) + (wallThickness / 2); // Progressive climb
                 
                 const stepX = boilerHallX + stairRadius * Math.sin(stepAngle);
                 const stepZ = boilerHallZ + stairRadius * Math.cos(stepAngle);
 
-                const step = createBlock(stairWidth, 0.5, stairDepth, metalMaterial, stepX, stepY + 0.25, stepZ); // 0.5 est la hauteur de la marche
-                step.rotation.y = stepAngle; // Orienter la marche vers le centre
+                const step = createBlock(stairWidth, 0.5, stairDepth, metalMaterial, stepX, stepY + 0.25, stepZ); // 0.5 is step height
+                step.rotation.y = stepAngle; // Orient the step towards the center
             }
 
 
-            // --- Tunnel de connexion entre les deux bâtiments ---
+            // --- Connection tunnel between the two buildings ---
             const tunnelLengthBetween = 15;
             createBlock(tunnelLengthBetween, mainHallHeight, entranceWidth, concreteMaterial, mainHallX + mainHallWidth / 2 + wallThickness + tunnelLengthBetween / 2, mainHallHeight / 2, mainHallZ);
             createBlock(tunnelLengthBetween, wallThickness, entranceWidth, floorMaterial, mainHallX + mainHallWidth / 2 + wallThickness + tunnelLengthBetween / 2, wallThickness / 2, mainHallZ);
 
-            createBlock(2, 4, 2, metalMaterial, mainHallX + 10, 2, mainHallZ + 15);
-            createBlock(2, 4, 2, metalMaterial, mainHallX - 10, 2, mainHallZ + 15);
+            // Some random small obstacles/structures for cover
             createBlock(1, 10, 1, metalMaterial, boilerHallX + 5, 5, boilerHallZ + 5);
         }
 
@@ -1026,66 +1129,111 @@
         /** Démarre la prochaine vague d'ennemis. */
         function startNextWave() {
             currentWave++; alexesKilledThisWave = 0;
+            // Dispose of all existing Alexes from previous wave
             alexesInCurrentWave.forEach(alex => {
                 scene.remove(alex.mesh);
+                alex.mesh.traverse((object) => {
+                    if (object.isMesh) {
+                        if (object.geometry) object.geometry.dispose();
+                        if (object.material) {
+                            if (Array.isArray(object.material)) {
+                                object.material.forEach(m => m.dispose());
+                            } else {
+                                object.material.dispose();
+                            }
+                        }
+                    }
+                });
                 if (alex.healthSprite) {
-                    alex.mesh.remove(alex.healthSprite); alex.healthSprite.material.dispose();
-                    alex.healthSprite.geometry.dispose(); if (alex.healthTexture) alex.healthTexture.dispose();
+                    alex.mesh.remove(alex.healthSprite);
+                    if (alex.healthSprite.material) alex.healthSprite.material.dispose();
+                    if (alex.healthSprite.geometry) alex.healthSprite.geometry.dispose();
+                    if (alex.healthTexture) alex.healthTexture.dispose();
                 }
             });
-            alexesInCurrentWave = []; alexes = [];
+            alexesInCurrentWave = []; // Clear current wave Alexes
+            alexes = []; // Ensure global alexes array is also cleared
 
-            const numAlexThisWave = 5 + (currentWave * 2);
+            const numAlexThisWave = 5 + (currentWave * 2); // Number of Alexes increases with wave
             showMessage(`Manche ${currentWave} ! Préparez-vous !`, 2000);
 
+            // Define potential spawn zones
             const spawnZonePositions = [
-                new THREE.Vector3(0, 0, -30), new THREE.Vector3(0, 0, 30),
-                new THREE.Vector3(-40, 0, 0), new THREE.Vector3(40, 0, 0),
-                new THREE.Vector3(20, 0, 20), new THREE.Vector3(-20, 0, -20)
+                new THREE.Vector3(mainHallX, 0, mainHallZ - mainHallDepth / 2 - wallThickness - 10), // Behind main hall
+                new THREE.Vector3(mainHallX, 0, mainHallZ + mainHallDepth / 2 + wallThickness + 10), // In front of main hall
+                new THREE.Vector3(mainHallX - mainHallWidth / 2 - wallThickness - 10, 0, mainHallZ), // Left of main hall
+                new THREE.Vector3(mainHallX + mainHallWidth / 2 + wallThickness + 10, 0, mainHallZ), // Right of main hall
+                new THREE.Vector3(boilerHallX, 0, boilerHallZ - boilerDepth / 2 - wallThickness - 10), // Behind boiler building
+                new THREE.Vector3(boilerHallX, 0, boilerHallZ + boilerDepth / 2 + wallThickness + 10), // In front of boiler building
+                new THREE.Vector3(boilerHallX - boilerWidth / 2 - wallThickness - 10, 0, boilerHallZ), // Left of boiler building
+                new THREE.Vector3(boilerHallX + boilerWidth / 2 + wallThickness + 10, 0, boilerHallZ) // Right of boiler building
             ];
-            spawnAreaRadius = 40;
+            spawnAreaRadius = 40; // General radius for random spawns if specific zones fail
 
             for (let i = 0; i < numAlexThisWave; i++) {
                 const alexHealth = Math.round(ALEX_BASE_HEALTH * (1 + (currentWave * 0.1)));
                 const alexSpeed = ALEX_BASE_SPEED * (1 + (currentWave * 0.005));
                 const alexDamage = ALEX_BASE_DAMAGE * (1 + (currentWave * 0.01));
 
-                let spawnX, spawnZ; let validSpawn = false;
-                for (let attempt = 0; attempt < 20; attempt++) {
+                let spawnX, spawnZ;
+                let validSpawnFound = false;
+                const maxSpawnAttempts = 50; // Increased attempts for robustness
+
+                for (let attempt = 0; attempt < maxSpawnAttempts; attempt++) {
                     const spawnIndex = Math.floor(Math.random() * spawnZonePositions.length);
                     const baseSpawn = spawnZonePositions[spawnIndex];
-                    spawnX = baseSpawn.x + (Math.random() - 0.5) * 10;
+                    spawnX = baseSpawn.x + (Math.random() - 0.5) * 10; // Random offset from base spawn point
                     spawnZ = baseSpawn.z + (Math.random() - 0.5) * 10;
-                    
-                    const spawnPosition = new THREE.Vector3(spawnX, 1.0, spawnZ);
-                    const distanceToPlayer = spawnPosition.distanceTo(playerContainer.position);
-                    if (distanceToPlayer < 15) continue;
 
-                    const AlexBoundingBox = new THREE.Box3().setFromCenterAndSize(
-                        spawnPosition, new THREE.Vector3(ALEX_COLLISION_RADIUS * 2, 2, ALEX_COLLISION_RADIUS * 2));
-                    
+                    const spawnPosition = new THREE.Vector3(spawnX, 1.0, spawnZ); // Assume Alex height is 2.0, so center is 1.0
+                    const distanceToPlayer = spawnPosition.distanceTo(playerContainer.position);
+
+                    if (distanceToPlayer < 15) { // Ensure Alex doesn't spawn too close to the player
+                        continue;
+                    }
+
+                    // Check for intersection with existing structures
+                    const alexBoundingBox = new THREE.Box3().setFromCenterAndSize(
+                        spawnPosition, new THREE.Vector3(ALEX_COLLISION_RADIUS * 2, 2, ALEX_COLLISION_RADIUS * 2)
+                    );
+
                     let intersectionWithStructure = false;
                     for (const obj of collidableObjects) {
+                        if (obj === ground) continue; // Don't check against ground for structural intersection
                         if (!obj.geometry.boundingBox) { obj.geometry.computeBoundingBox(); }
                         const objBox = obj.geometry.boundingBox.clone().applyMatrix4(obj.matrixWorld);
-                        if (AlexBoundingBox.intersectsBox(objBox)) { intersectionWithStructure = true; break; }
+                        if (alexBoundingBox.intersectsBox(objBox)) {
+                            intersectionWithStructure = true;
+                            break;
+                        }
                     }
-                    if (intersectionWithStructure) continue;
+                    if (intersectionWithStructure) {
+                        continue;
+                    }
 
-                    const tempAlexRaycaster = new THREE.Raycaster(spawnPosition, new THREE.Vector3(0, -1, 0), 0, 5);
+                    // Check if the spawn position is on the ground (raycast downwards)
+                    const tempAlexRaycaster = new THREE.Raycaster(spawnPosition.clone().add(new THREE.Vector3(0, 5, 0)), new THREE.Vector3(0, -1, 0), 0, 10);
                     const intersections = tempAlexRaycaster.intersectObjects(collidableObjects, true);
                     const hitGround = intersections.some(intersect => intersect.object === ground);
-                    if (!hitGround) { continue; }
-                    
-                    validSpawn = true; break;
+                    if (!hitGround) {
+                        continue; // Must spawn on ground
+                    }
+
+                    validSpawnFound = true;
+                    break; // Valid spawn found, break from attempt loop
                 }
-                if (!validSpawn) {
+
+                if (!validSpawnFound) {
+                    // Fallback: if after many attempts, no valid spot found, just place it somewhere,
+                    // this should be rare with increased attempts.
+                    console.warn("Could not find a valid spawn point for Alex after multiple attempts. Placing at a default fallback.");
                     spawnX = (Math.random() - 0.5) * (spawnAreaRadius * 1.5);
                     spawnZ = (Math.random() - 0.5) * (spawnAreaRadius * 1.5);
                 }
 
                 const alex = new Alex(spawnX, 1.0, spawnZ, alexHealth, alexSpeed, alexDamage, scene, playerContainer);
-                alexes.push(alex); alexesInCurrentWave.push(alex);
+                alexes.push(alex);
+                alexesInCurrentWave.push(alex);
             }
             updateWaveInfoDisplay();
         }
@@ -1099,14 +1247,17 @@
         /** Termine la partie. */
         function endGame() {
             gameActive = false; currentUIMode = 'gameOver'; document.exitPointerLock();
+            // Hide all game UI elements
             mainMenuDiv.style.display = 'none'; settingsSection.style.display = 'none';
             pauseMenu.style.display = 'none'; quitConfirmModal.style.display = 'none';
             gameContainer.style.display = 'none'; infoBox.style.display = 'none';
             ammoDisplay.style.display = 'none'; healthDisplay.style.display = 'none';
             waveInfo.style.display = 'none'; shootingEffectElements.forEach(el => el.style.display = 'none');
+            // Show game over screen
             gameOverScreen.style.display = 'flex';
             finalAlexKillsDisplay.textContent = totalAlexesKilledOverall;
             finalWavesSurvivedDisplay.textContent = currentWave;
+            // Clear any pending wave timers
             if (waveSpawnTimer) { clearTimeout(waveSpawnTimer); waveSpawnTimer = null; }
         }
 
@@ -1114,107 +1265,106 @@
         function animate() {
             requestAnimationFrame(animate);
             const currentTime = performance.now();
-            const deltaTime = (currentTime - lastFrameTime) / 1000;
+            const deltaTime = (currentTime - lastFrameTime) / 1000; // Convert to seconds
             lastFrameTime = currentTime;
             
             if (gameActive) {
-                playerVelocity.set(0, 0, 0);
+                // Player movement
+                let moveVector = new THREE.Vector3();
                 const forwardDir = new THREE.Vector3(); camera.getWorldDirection(forwardDir);
                 forwardDir.y = 0; forwardDir.normalize();
                 const rightDir = new THREE.Vector3(); rightDir.setFromMatrixColumn(camera.matrixWorld, 0);
                 rightDir.y = 0; rightDir.normalize();
 
-                let desiredMoveX = 0, desiredMoveZ = 0;
-                if (keyboard[keyBindings.moveForward]) { desiredMoveZ += moveSpeed * deltaTime; }
-                if (keyboard[keyBindings.moveBackward]) { desiredMoveZ -= moveSpeed * deltaTime; }
-                if (keyboard[keyBindings.strafeLeft]) { desiredMoveX -= moveSpeed * deltaTime; }
-                if (keyboard[keyBindings.strafeRight]) { desiredMoveX += moveSpeed * deltaTime; }
+                if (keyboard[keyBindings.moveForward]) { moveVector.add(forwardDir); }
+                if (keyboard[keyBindings.moveBackward]) { moveVector.sub(forwardDir); }
+                if (keyboard[keyBindings.strafeLeft]) { moveVector.sub(rightDir); }
+                if (keyboard[keyBindings.strafeRight]) { moveVector.add(rightDir); }
 
-                const currentPosition = playerContainer.position.clone();
-                let nextPosition = currentPosition.clone();
-                
-                // Mouvement horizontal (plan XZ) avec détection de collision
-                const moveVector = new THREE.Vector3();
-                if (desiredMoveZ !== 0) moveVector.add(forwardDir.clone().multiplyScalar(desiredMoveZ));
-                if (desiredMoveX !== 0) moveVector.add(rightDir.clone().multiplyScalar(desiredMoveX));
-                
-                if (moveVector.length() > 0) {
-                    moveVector.normalize().multiplyScalar(moveVector.length()); // Normaliser à nouveau à la magnitude originale
-                    const checkDistance = moveVector.length() + playerCollisionRadius + 0.1; // Ajouter un tampon
+                if (moveVector.lengthSq() > 0) { // Check if there's actual horizontal movement
+                    moveVector.normalize().multiplyScalar(moveSpeed * deltaTime); // Apply movement speed and delta time
+                    playerContainer.position.add(moveVector); // Tentatively move the player
 
-                    // Effectuer un raycast depuis la position actuelle dans la direction du mouvement
-                    raycaster.set(currentPosition, moveVector.clone().normalize());
-                    raycaster.far = checkDistance;
+                    // Now check for collisions with static objects and resolve by pushing out
+                    const playerBoundingSphere = new THREE.Sphere(playerContainer.position, playerCollisionRadius);
 
-                    const intersects = raycaster.intersectObjects(collidableObjects, true);
+                    for (const obj of collidableObjects) {
+                        if (obj === ground) continue; // Don't collide horizontally with ground
 
-                    if (intersects.length === 0 || intersects[0].distance >= checkDistance) { // Aucune collision ou assez loin
-                        nextPosition.add(moveVector);
-                    } else { // Collision détectée
-                        const normal = intersects[0].face.normal;
+                        if (!obj.geometry.boundingBox) {
+                            obj.geometry.computeBoundingBox();
+                        }
+                        const objBox = obj.geometry.boundingBox.clone().applyMatrix4(obj.matrixWorld);
 
-                        // Glisser le long du mur
-                        const slideVector = moveVector.clone().projectOnPlane(normal).normalize().multiplyScalar(moveVector.length());
-                        
-                        // Recalculer le raycast pour la direction de glissement afin d'éviter une nouvelle collision
-                        raycaster.set(currentPosition, slideVector.clone().normalize());
-                        raycaster.far = slideVector.length() + playerCollisionRadius + 0.1;
-                        const slideIntersects = raycaster.intersectObjects(collidableObjects, true);
+                        // Check for intersection between player sphere and object bounding box
+                        if (playerBoundingSphere.intersectsBox(objBox)) {
+                            // Calculate penetration vector
+                            const intersectionPoint = playerBoundingSphere.center.clone();
+                            objBox.clampPoint(intersectionPoint, intersectionPoint); // Clamp player center to the closest point on the box
 
-                        if (slideIntersects.length === 0 || slideIntersects[0].distance >= slideVector.length() + playerCollisionRadius + 0.01) {
-                            nextPosition.add(slideVector);
-                        } else { // Toujours en collision, arrêter le mouvement dans cette direction
-                             // Se déplacer jusqu'au point de collision moins un petit tampon
-                            nextPosition.add(slideVector.clone().normalize().multiplyScalar(slideIntersects[0].distance - playerCollisionRadius - 0.01));
+                            const penetrationVector = playerBoundingSphere.center.clone().sub(intersectionPoint);
+                            penetrationVector.y = 0; // Only resolve horizontal collisions
+
+                            const distance = penetrationVector.length();
+                            if (distance < playerCollisionRadius) {
+                                const overlap = playerCollisionRadius - distance;
+                                if (distance === 0) { // If player is exactly at the center of the box (unlikely but handle)
+                                    penetrationVector.x = (Math.random() - 0.5) * 0.1;
+                                    penetrationVector.z = (Math.random() - 0.5) * 0.1;
+                                    penetrationVector.normalize();
+                                } else {
+                                    penetrationVector.normalize();
+                                }
+                                playerContainer.position.add(penetrationVector.multiplyScalar(overlap + 0.01)); // Push player out
+                            }
                         }
                     }
                 }
                 
-                // Détection de collision joueur-Alex et repoussement
+                // Player-Alex collision and push-out (horizontal)
                 alexes.forEach(alex => {
                     const combinedRadius = playerCollisionRadius + ALEX_COLLISION_RADIUS;
-                    const distanceVector = new THREE.Vector3().subVectors(nextPosition, alex.mesh.position);
-                    distanceVector.y = 0;
+                    const distanceVector = new THREE.Vector3().subVectors(playerContainer.position, alex.mesh.position);
+                    distanceVector.y = 0; // Only consider horizontal distance
 
                     const currentDistance = distanceVector.length();
                     if (currentDistance < combinedRadius) {
                         const overlap = combinedRadius - currentDistance;
-                        if (currentDistance === 0) { distanceVector.x = (Math.random() - 0.5) * 0.1; distanceVector.z = (Math.random() - 0.5) * 0.1; distanceVector.normalize(); }
-                        else { distanceVector.normalize(); }
-                        nextPosition.add(distanceVector.multiplyScalar(overlap));
+                        if (currentDistance === 0) { // Avoid division by zero if positions are identical
+                            distanceVector.x = (Math.random() - 0.5) * 0.1;
+                            distanceVector.z = (Math.random() - 0.5) * 0.1;
+                            distanceVector.normalize();
+                        } else {
+                            distanceVector.normalize();
+                        }
+                        playerContainer.position.add(distanceVector.multiplyScalar(overlap + 0.01)); // Push player out
                     }
                 });
 
-                playerContainer.position.x = nextPosition.x;
-                playerContainer.position.z = nextPosition.z;
+                // Vertical movement (Y-axis) including gravity and ground collision
+                playerVerticalVelocity += gravity * deltaTime; // Apply gravity with deltaTime
+                playerContainer.position.y += playerVerticalVelocity * deltaTime; // Apply vertical velocity with deltaTime
 
-
-                // Mouvement vertical (axe Y) incluant la gravité et la collision avec le sol
-                playerVerticalVelocity += gravity; // Appliquer la gravité indépendamment de deltaTime
-                playerContainer.position.y += playerVerticalVelocity;
-
-                // Raycast vers le bas depuis le niveau des yeux du joueur pour détecter le sol
-                const playerFeetY = playerContainer.position.y - 1.7; // Coordonnée Y approximative des pieds du joueur
-                const rayOriginY = playerFeetY + 0.1; // Commencer le rayon légèrement au-dessus des pieds
+                // Raycast downwards from player's feet to detect ground
+                const playerFeetY = playerContainer.position.y - playerHeight; // Player's feet Y coordinate
+                const rayOriginY = playerFeetY + 0.1; // Start ray slightly above feet
                 const rayOrigin = new THREE.Vector3(playerContainer.position.x, rayOriginY, playerContainer.position.z);
-                const rayDirection = new THREE.Vector3(0, -1, 0); // Vers le bas
+                const rayDirection = new THREE.Vector3(0, -1, 0); // Downwards
 
                 raycaster.set(rayOrigin, rayDirection);
-                // La valeur "far" doit couvrir la distance de rayOrigin au sol + hauteur max de marche + un tampon pour la vitesse de chute
-                raycaster.far = Math.abs(playerVerticalVelocity) + playerStepHeight + 0.5; // Tampon augmenté
+                // The "far" value should cover the distance player falls in this frame + max step height + a small buffer
+                raycaster.far = Math.abs(playerVerticalVelocity * deltaTime) + playerStepHeight + 0.1;
 
                 const groundIntersects = raycaster.intersectObjects(collidableObjects, true);
 
                 let landedOnGround = false;
                 if (groundIntersects.length > 0) {
-                    const closestGroundHit = groundIntersects[0]; // Prendre la toute première (la plus proche) intersection
+                    const closestGroundHit = groundIntersects[0];
+                    const targetPlayerY = closestGroundHit.point.y + playerHeight; // Target playerContainer.position.y (eye level)
 
-                    // Vérifier si le point d'impact est dans une hauteur de marche acceptable
-                    const heightDifference = playerFeetY - closestGroundHit.point.y; // Distance entre les pieds actuels du joueur et le point d'impact
-
-                    if (playerVerticalVelocity < 0 || heightDifference <= playerStepHeight) { // Si chute OU tentative de monter une petite marche
-                        // Ancrer le joueur au sommet de l'objet touché
-                        playerContainer.position.y = closestGroundHit.point.y + 1.7; // 1.7 est la hauteur des yeux du joueur par rapport au sol
+                    // Only land if falling or if the step is within playerStepHeight
+                    if (playerVerticalVelocity < 0 || (targetPlayerY > playerContainer.position.y && targetPlayerY - playerContainer.position.y <= playerStepHeight)) {
+                        playerContainer.position.y = targetPlayerY;
                         playerVerticalVelocity = 0;
                         canJump = true;
                         landedOnGround = true;
@@ -1222,17 +1372,32 @@
                 }
 
                 if (!landedOnGround) {
-                    canJump = false; // Ne peut pas sauter si pas fermement au sol
-                    if (playerVerticalVelocity === 0) { // Si la vitesse est nulle mais pas sur la surface, commencer à tomber (ex: chute d'une plateforme)
-                        playerVerticalVelocity = gravity;
+                    canJump = false; // Cannot jump if not firmly on ground
+                    // If player is not on ground and not falling, start falling (e.g., walked off a platform)
+                    if (playerVerticalVelocity === 0 && playerContainer.position.y > playerHeight + 0.01) { // Add small buffer to avoid re-triggering immediately
+                        playerVerticalVelocity = gravity * deltaTime;
                     }
                 }
 
-                // Restriction absolue pour empêcher de tomber à travers le point le plus bas du monde (y=0 pour le sol)
-                if (playerContainer.position.y < 1.7) { // Si le niveau des yeux du joueur passe sous 1.7 (le niveau du sol Y=0 + hauteur du joueur)
-                    playerContainer.position.y = 1.7;
+                // Absolute restriction to prevent falling through the lowest point of the world (ground Y=0)
+                if (playerContainer.position.y < playerHeight) {
+                    playerContainer.position.y = playerHeight;
                     playerVerticalVelocity = 0;
                     canJump = true;
+                }
+
+                // Update Alexes
+                alexes.forEach(alex => alex.update(deltaTime));
+
+                // Update player damage cooldown
+                if (playerDamageCooldown > 0) {
+                    playerDamageCooldown -= deltaTime * 1000; // Decrease by milliseconds
+                    if (playerDamageCooldown < 0) playerDamageCooldown = 0;
+                }
+
+                // Check for game over
+                if (playerHealth <= 0) {
+                    endGame();
                 }
             }
             renderer.render(scene, camera);
@@ -1250,13 +1415,14 @@
             infoBox.style.display = 'none'; ammoDisplay.style.display = 'none';
             healthDisplay.style.display = 'none'; waveInfo.style.display = 'none';
             gameOverScreen.style.display = 'none'; gameActive = false;
-            updateKeyRemapButtons(); shootingEffectElements.forEach(el => el.style.display = 'block');
+            updateKeyRemapButtons(); // Ensure key remapping buttons show current keys
+            shootingEffectElements.forEach(el => el.style.display = 'block'); // Show menu background effects
         }
 
         /** Affiche l'écran des paramètres. */
         function showSettingsScreen() {
             previousUIMode = currentUIMode; currentUIMode = 'settings';
-            mainMenuDiv.style.display = 'flex';
+            mainMenuDiv.style.display = 'flex'; // Keep main menu container visible for settings
             document.getElementById('main-menu-title').style.display = 'none';
             document.getElementById('menu-buttons-container').style.display = 'none';
             settingsSection.style.display = 'flex'; pauseMenu.style.display = 'none';
@@ -1264,7 +1430,7 @@
             infoBox.style.display = 'none'; ammoDisplay.style.display = 'none';
             healthDisplay.style.display = 'none'; waveInfo.style.display = 'none';
             gameOverScreen.style.display = 'none'; gameActive = false;
-            shootingEffectElements.forEach(el => el.style.display = 'none');
+            shootingEffectElements.forEach(el => el.style.display = 'none'); // Hide menu background effects in settings
             if (sensitivitySlider && currentSensitivityDisplay) {
                 sensitivitySlider.value = rotationSpeed;
                 currentSensitivityDisplay.textContent = rotationSpeed.toFixed(4);
@@ -1280,7 +1446,7 @@
             infoBox.style.display = 'none'; ammoDisplay.style.display = 'none';
             healthDisplay.style.display = 'none'; waveInfo.style.display = 'none';
             gameOverScreen.style.display = 'none'; gameActive = false;
-            shootingEffectElements.forEach(el => el.style.display = 'none');
+            shootingEffectElements.forEach(el => el.style.display = 'none'); // Hide menu background effects in pause
         }
 
         /** Masque le menu de pause. */
@@ -1301,6 +1467,7 @@
          */
         function requestGamePointerLock(forceGameMode = false) {
             if (isPointerLockRequested || document.pointerLockElement === gameContainer) {
+                // If pointer lock is already requested or active, and we want to force game mode, update UI
                 if (document.pointerLockElement === gameContainer && currentUIMode !== 'game' && forceGameMode) {
                     gameActive = true; currentUIMode = 'game';
                     mainMenuDiv.style.display = 'none'; settingsSection.style.display = 'none';
@@ -1316,8 +1483,10 @@
                 .then(() => { isPointerLockRequested = false; })
                 .catch((e) => {
                     isPointerLockRequested = false;
+                    // Handle cases where pointer lock fails (e.g., user gesture required, security error)
                     if (e.name === "SecurityError" || (e.message && e.message.includes("UserGesture"))) {
-                        showMessage('Verrouillage de la souris annulé. Retour au menu précédent.', 3000);
+                        showMessage('Verrouillage de la souris annulé. Cliquez pour rejouer.', 3000);
+                        // Go back to the previous UI mode, or main menu if no previous game state
                         if (previousUIMode === 'pauseMenu') { showPauseMenu(); }
                         else { showMenuScreen(); }
                     } else {
@@ -1329,17 +1498,28 @@
 
         /** Initialise le jeu. */
         function init() {
+            // Scene setup
             scene = new THREE.Scene(); scene.background = new THREE.Color(0x333333);
-            playerContainer = new THREE.Object3D(); playerContainer.position.set(0, 1.7, 0); scene.add(playerContainer); // Position de départ ajustée
+            
+            // Player container (for horizontal movement and rotation)
+            playerContainer = new THREE.Object3D();
+            playerContainer.position.set(0, playerHeight, 0); // Player starting position (feet at Y=0, eyes at playerHeight)
+            scene.add(playerContainer);
+
+            // Camera setup
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 0, 0); playerContainer.add(camera);
+            camera.position.set(0, 0, 0); // Camera is at the center of playerContainer (which is player's eye level)
+            playerContainer.add(camera);
+
+            // Renderer setup
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('game-container').appendChild(renderer.domElement);
 
-            playerVelocity = new THREE.Vector3();
+            playerVelocity = new THREE.Vector3(); // For player movement calculations
 
+            // Get UI element references
             messageBox = document.getElementById('message-box'); crosshair = document.getElementById('crosshair');
             ammoDisplay = document.getElementById('ammo-display'); healthDisplay = document.getElementById('health-display');
             healthBar = document.getElementById('health-bar'); waveInfo = document.getElementById('wave-info');
@@ -1366,6 +1546,7 @@
             finalWavesSurvivedDisplay = document.getElementById('final-waves-survived');
             replayButton = document.getElementById('replay-button');
 
+            // Event listeners for settings
             if (sensitivitySlider) {
                 sensitivitySlider.value = rotationSpeed;
                 sensitivitySlider.addEventListener('input', (event) => {
@@ -1375,6 +1556,7 @@
             }
             if (currentSensitivityDisplay) { currentSensitivityDisplay.textContent = rotationSpeed.toFixed(4); }
 
+            // Key remapping buttons
             document.getElementById('remap-moveForward').addEventListener('click', (event) => startRemap('moveForward', event.target));
             document.getElementById('remap-moveBackward').addEventListener('click', (event) => startRemap('moveBackward', event.target));
             document.getElementById('remap-strafeLeft').addEventListener('click', (event) => startRemap('strafeLeft', event.target));
@@ -1384,13 +1566,20 @@
             document.getElementById('remap-reload').addEventListener('click', (event) => startRemap('reload', event.target));
             
             if (resetKeysButton) { resetKeysButton.addEventListener('click', resetKeysToDefault); }
+
+            // Pause menu buttons
             if (resumeButton) { resumeButton.addEventListener('click', () => { hidePauseMenu(); requestGamePointerLock(true); }); }
             if (pauseSettingsButton) { pauseSettingsButton.addEventListener('click', () => { hidePauseMenu(); showSettingsScreen(); }); }
             if (quitToMainButton) { quitToMainButton.addEventListener('click', showQuitConfirm); }
+
+            // Quit confirmation modal buttons
             if (confirmQuitYesButton) { confirmQuitYesButton.addEventListener('click', () => { hideQuitConfirm(); showMenuScreen(); showMessage("Partie abandonnée. La progression a été perdue.", 3000); }); }
             if (confirmQuitNoButton) { confirmQuitNoButton.addEventListener('click', () => { hideQuitConfirm(); showPauseMenu(); }); }
-            if (replayButton) { replayButton.addEventListener('click', () => { resetGame(); showMenuScreen(); }); }
 
+            // Game Over screen button
+            if (replayButton) { replayButton.addEventListener('click', () => { resetGame(); showMenuScreen(); }); } // Go back to main menu after replay
+
+            // Add shooting effects to main menu background
             for (let i = 0; i < NUM_SHOOTING_EFFECTS; i++) {
                 const flash = document.createElement('div');
                 flash.classList.add('shooting-flash');
@@ -1401,10 +1590,12 @@
                 mainMenuDiv.appendChild(flash); shootingEffectElements.push(flash);
             }
 
+            // Lighting
             const ambientLight = new THREE.AmbientLight(0x404040, 2); scene.add(ambientLight);
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
             directionalLight.position.set(5, 10, 7); scene.add(directionalLight);
 
+            // Initial ground (will be replaced by generatePowerPlant)
             const textureLoader = new THREE.TextureLoader();
             const groundTexture = textureLoader.load('https://placehold.co/1024x1024/303030/808080.png');
             groundTexture.wrapS = THREE.RepeatWrapping; groundTexture.wrapT = THREE.RepeatWrapping; groundTexture.repeat.set(20, 20);
@@ -1414,13 +1605,16 @@
             ground.rotation.x = -Math.PI / 2;
             scene.add(ground); collidableObjects.push(ground);
             
+            // Generate the power plant map
             generatePowerPlant();
 
+            // Player's arm and weapon visual
             const armMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
             const weaponMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7, metalness: 0.5 });
             const forearmGeometry = new THREE.BoxGeometry(0.35, 0.35, 1.2);
             armMesh = new THREE.Mesh(forearmGeometry, armMaterial);
-            armMesh.position.set(0.5, -0.7, -1.0); armMesh.rotation.x = -Math.PI / 6; armMesh.rotation.y = Math.PI / 8;
+            armMesh.position.set(0.5, -0.7, -1.0); // Offset from camera for first-person view
+            armMesh.rotation.x = -Math.PI / 6; armMesh.rotation.y = Math.PI / 8;
             camera.add(armMesh);
             const weaponBodyGeometry = new THREE.BoxGeometry(0.18, 0.18, 1.0);
             weaponMesh = new THREE.Mesh(weaponBodyGeometry, weaponMaterial);
@@ -1430,21 +1624,25 @@
             weaponBarrelMesh.position.set(0, 0, -0.6); weaponBarrelMesh.rotation.x = Math.PI / 2;
             weaponMesh.add(weaponBarrelMesh);
 
+            // Debug ray line (for visualizing shooting/knife raycasts)
             const rayMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
             const rayPoints = []; rayPoints.push(new THREE.Vector3(0, 0, 0)); rayPoints.push(new THREE.Vector3(0, 0, -1));
             const rayGeometry = new THREE.BufferGeometry().setFromPoints(rayPoints);
             debugRayLine = new THREE.Line(rayGeometry, rayMaterial);
             camera.add(debugRayLine); debugRayLine.visible = false;
 
+            // Global event listeners
             window.addEventListener('resize', onWindowResize, false);
             document.addEventListener('keydown', handleGameKeydown);
             document.addEventListener('keyup', handleGameKeyup);
             document.addEventListener('mousemove', onMouseMove, false);
             document.addEventListener('mousedown', onMouseDown, false);
             document.addEventListener('mouseup', onMouseUp, false);
-            document.addEventListener('contextmenu', (event) => event.preventDefault());
+            document.addEventListener('contextmenu', (event) => event.preventDefault()); // Prevent right-click context menu
 
+            // Pointer Lock API event listeners
             gameContainer.addEventListener('click', () => {
+                // Request pointer lock only if not in game mode (i.e., from menu)
                 if (currentUIMode === 'mainMenu' || currentUIMode === 'pauseMenu') {
                     requestGamePointerLock(true);
                 }
@@ -1452,6 +1650,7 @@
 
             document.addEventListener('pointerlockchange', () => {
                 if (document.pointerLockElement === gameContainer) {
+                    // Pointer lock was successful, enter game mode
                     gameActive = true; currentUIMode = 'game'; isPointerLockRequested = false;
                     mainMenuDiv.style.display = 'none'; settingsSection.style.display = 'none';
                     pauseMenu.style.display = 'none'; quitConfirmModal.style.display = 'none';
@@ -1459,40 +1658,48 @@
                     infoBox.style.display = 'none'; ammoDisplay.style.display = 'block';
                     healthDisplay.style.display = 'block'; waveInfo.style.display = 'block';
                 } else {
+                    // Pointer lock was exited (e.g., by user pressing Esc, or automatically)
                     gameActive = false; isPointerLockRequested = false;
-                    gameContainer.style.display = 'none'; infoBox.style.display = 'block';
-                    if (currentUIMode === 'game') { showPauseMenu(); }
-                    else if (currentUIMode === 'pauseMenu') { showPauseMenu(); }
-                    else if (currentUIMode === 'settings') {
+                    gameContainer.style.display = 'none'; infoBox.style.display = 'block'; // Show info box when pointer lock is lost
+
+                    // Determine which menu to show based on previous UI mode
+                    if (currentUIMode === 'game') { showPauseMenu(); } // If in game, go to pause menu
+                    else if (currentUIMode === 'pauseMenu') { showPauseMenu(); } // If already in pause, stay there
+                    else if (currentUIMode === 'settings') { // If in settings, go back to previous menu (pause or main)
                         if (previousUIMode === 'pauseMenu') { showPauseMenu(); }
                         else { showMenuScreen(); }
-                    } else if (currentUIMode === 'quitConfirm') { showPauseMenu(); }
-                    else { showMenuScreen(); }
+                    } else if (currentUIMode === 'quitConfirm') { showPauseMenu(); } // If in quit confirm, go back to pause
+                    else { showMenuScreen(); } // Default to main menu
                 }
             });
 
             document.addEventListener('pointerlockerror', (event) => {
+                // Handle cases where pointer lock fails (e.g., browser restrictions)
                 if (document.pointerLockElement !== gameContainer) {
                     showMessage('Verrouillage de la souris interrompu ou n\'a pas pu être activé. Retour au menu principal.', 3000);
                     showMenuScreen();
                 }
             });
 
+            // Main menu button actions
             startGameButton.addEventListener('click', () => {
-                resetGame();
+                resetGame(); // Reset game state and start first wave
                 mainMenuDiv.style.display = 'none';
                 gameContainer.style.display = 'block';
-                requestGamePointerLock(true);
+                requestGamePointerLock(true); // Request pointer lock to start playing
                 updateAmmoDisplay(); updateHealthDisplay(); updateWaveInfoDisplay();
             });
 
             mainMenuSettingsButton.addEventListener('click', () => { showSettingsScreen(); });
             backToMainMenuButton.addEventListener('click', () => { showMenuScreen(); });
 
+            // Start the animation loop
             animate();
+            // Show the main menu initially
             showMenuScreen();
         }
 
+        // Initialize the game when the DOM is fully loaded
         document.addEventListener('DOMContentLoaded', () => { init(); });
     </script>
 </body>
